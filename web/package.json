@@ -1,0 +1,42 @@
+{
+  "name": "truckbuddy-web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.12.6",
+    "@supabase/supabase-js": "^2.115.0",
+    "next": "15.5.24",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "stripe": "^22.6.1",
+    "tesseract.js": "^7.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.1.11",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@types/node": "22.15.30",
+    "@types/react": "19.2.2",
+    "@types/react-dom": "19.2.2",
+    "@vitejs/plugin-react": "^6.1.1",
+    "@vitest/coverage-v8": "^5.0.0",
+    "jsdom": "^30.0.1",
+    "tailwindcss": "4.1.11",
+    "typescript": "6.0.3",
+    "vitest": "^5.0.0"
+  },
+  "allowScripts": {
+    "@tailwindcss/oxide@4.1.11": true,
+    "sharp@0.34.5": true
+  }
+}

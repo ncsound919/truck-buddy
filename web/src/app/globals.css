@@ -1,0 +1,240 @@
+@import 'tailwindcss';
+
+/*
+ * Truck Buddy web design tokens. Kept in sync with the mobile brand:
+ * src/constants/brand.ts (accent #0F6BFF, ink #1B2B4B, surface #0B1626).
+ */
+@theme {
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+  --color-accent: #0f6bff;
+  --color-accent-600: #0f5ad4;
+  --color-accent-soft: #e4edff;
+  --color-accent-ink: #1b2b4b;
+
+  --color-ink: #1b2b4b;
+  --color-ink-2: #33415a;
+  --color-muted: #5a6a84;
+  --color-faint: #7d93b8;
+
+  --color-surface: #0b1626;
+  --color-surface-raised: #152441;
+  --color-surface-muted: #1b2c4a;
+  --color-line: #e3e9f1;
+
+  --color-success: #118a44;
+  --color-success-soft: #e4f6ea;
+  --color-warning: #b46a00;
+  --color-warning-soft: #fbeed8;
+  --color-danger: #c92222;
+  --color-danger-soft: #fde4e4;
+
+  --color-bg: #ffffff;
+  --color-bg-alt: #f5f8fd;
+  --color-bg-dark: #0b1626;
+
+  --radius-xl: 18px;
+  --radius-2xl: 24px;
+  --radius-3xl: 30px;
+
+  /* Elevation */
+  --shadow-card: 0 1px 2px rgba(11, 22, 38, 0.04), 0 1px 3px rgba(11, 22, 38, 0.06);
+  --shadow-card-hover: 0 6px 16px -4px rgba(11, 22, 38, 0.08), 0 12px 32px -8px rgba(11, 22, 38, 0.14);
+  --shadow-pop: 0 12px 32px -8px rgba(11, 22, 38, 0.18), 0 24px 60px -20px rgba(11, 22, 38, 0.28);
+  --shadow-glow: 0 12px 32px -12px rgba(15, 107, 255, 0.6);
+  --shadow-btn: 0 1px 2px rgba(11, 22, 38, 0.2), 0 8px 20px -10px rgba(15, 107, 255, 0.9);
+
+  /* Motion */
+  --ease-brand: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 150ms;
+  --duration-base: 220ms;
+  --duration-slow: 420ms;
+
+  /* Ring */
+  --ring-accent: 0 0 0 3px rgba(15, 107, 255, 0.35);
+}
+
+/* ---------- Base ---------- */
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 84px;
+  color-scheme: light;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--color-bg);
+  color: var(--color-ink);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+}
+
+::selection {
+  background: rgba(15, 107, 255, 0.18);
+  color: #082c63;
+}
+
+/* Focus visibility — consistent, accessible, but only when keyboard-driving. */
+:where(a, button, input, select, textarea, summary, [tabindex], [role='button']):focus-visible {
+  outline: none;
+  box-shadow: var(--ring-accent);
+}
+
+/* Refined scrollbar (webkit) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(27, 43, 75, 0.22) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(27, 43, 75, 0.2);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(27, 43, 75, 0.35);
+  background-clip: content-box;
+  border: 2px solid transparent;
+}
+
+/* ---------- Surfaces ---------- */
+/* Frosted glass (light) */
+.glass {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: saturate(180%) blur(14px);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
+}
+/* Dark frosted glass */
+.glass-dark {
+  background: rgba(11, 22, 38, 0.72);
+  backdrop-filter: saturate(160%) blur(14px);
+  -webkit-backdrop-filter: saturate(160%) blur(14px);
+}
+
+/* Card elevation + interactive lift. Combine: "card base card-lift" */
+.card {
+  background: var(--color-bg);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-card);
+}
+.card-lift {
+  transition: transform var(--duration-base) var(--ease-brand),
+    box-shadow var(--duration-base) var(--ease-brand),
+    border-color var(--duration-base) var(--ease-brand);
+}
+.card-lift:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-card-hover);
+}
+.card-lift:focus-visible {
+  box-shadow: var(--shadow-card-hover), var(--ring-accent);
+}
+
+/* Accessible focus ring for interactive cards (whole-card links) */
+.focus-card {
+  position: relative;
+}
+.focus-card:focus-visible {
+  box-shadow: var(--ring-accent);
+  border-radius: var(--radius-2xl);
+}
+
+/* ---------- Motion / reveal ---------- */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes float-slow {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* Reveal on scroll (paired with <Reveal/> IntersectionObserver) */
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.7s var(--ease-brand), transform 0.7s var(--ease-brand);
+  will-change: opacity, transform;
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+/* Stagger helper — set inline transition-delay via style for fine control. */
+/* Staggered children: wrap a grid in <Reveal className="reveal-stagger"> */
+.reveal-stagger > * {
+  opacity: 0;
+}
+.reveal-stagger.is-visible > * {
+  animation: fade-up 0.6s var(--ease-brand) both;
+}
+.reveal-stagger.is-visible > *:nth-child(1) { animation-delay: 0.04s; }
+.reveal-stagger.is-visible > *:nth-child(2) { animation-delay: 0.1s; }
+.reveal-stagger.is-visible > *:nth-child(3) { animation-delay: 0.16s; }
+.reveal-stagger.is-visible > *:nth-child(4) { animation-delay: 0.22s; }
+.reveal-stagger.is-visible > *:nth-child(5) { animation-delay: 0.28s; }
+.reveal-stagger.is-visible > *:nth-child(6) { animation-delay: 0.34s; }
+.reveal-stagger.is-visible > *:nth-child(7) { animation-delay: 0.4s; }
+.reveal-stagger.is-visible > *:nth-child(8) { animation-delay: 0.46s; }
+
+.animate-fade-up {
+  animation: fade-up 0.6s var(--ease-brand) both;
+}
+.animate-fade-in {
+  animation: fade-in 0.5s var(--ease-brand) both;
+}
+.animate-float-slow {
+  animation: float-slow 7s ease-in-out infinite;
+}
+
+/* ---------- Text helpers ---------- */
+.balance {
+  text-wrap: balance;
+}
+.pretty {
+  text-wrap: pretty;
+}
+
+/* ---------- Reduced motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+  }
+}

@@ -54,3 +54,19 @@ Join our community of developers creating universal apps.
 
 - [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
 - [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+
+## Cab app — run-tracker & auto-pilot
+
+Full feature + seam map lives in `AGENTS.md`. Short version:
+
+- **Run tracker:** a local on-duty clock starts on "Start Shift"; detention is
+  auto-logged per completed stop; a 30-min break and fatigue check-ins are
+  tracked (`src/domain/types.ts` → `src/store/flow.tsx`). Real ELD pairing is a
+  backend item.
+- **Auto-pilot:** preferences are remembered once (`DriverPrefs`, defaults +
+  migration in `src/domain/data.ts`) — remembered GPS, auto doc-forward on
+  capture, auto end-of-day report, auto fault→fleet alert (once/shift), and a
+  **gated** consignee arrival text (off by default, explicit consent).
+- **Transport is mocked.** OCR/GPS/email/SMS/EOD all run through the
+  `TruckBuddyApi` seam (`src/services/truck-buddy-api.ts`); nothing reaches a
+  network. A real backend implements the same interface. Label accordingly.

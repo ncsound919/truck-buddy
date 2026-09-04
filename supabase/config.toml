@@ -1,0 +1,58 @@
+# Supabase local project config
+# Run `supabase init` in this directory to link to your cloud project.
+# After linking, set secrets with:
+#   supabase secrets set RESEND_API_KEY=re_xxx
+#   supabase secrets set EMAIL_FROM="Truck Buddy <dispatch@yourdomain.example>"
+#
+# For local development:
+#   supabase start          # starts all services (requires Docker)
+#   supabase functions serve # serves functions at http://localhost:54321/functions/v1/...
+#
+# For production deploy:
+#   supabase login           # authenticate with Supabase CLI
+#   supabase link --project-ref YOUR_PROJECT_REF
+#   supabase functions deploy dispatch-send
+
+[project]
+# Replace with your Supabase project ref (found at project.supabase.com > Settings > API)
+# id = "YOUR_PROJECT_REF"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[api.tls]
+enabled = false
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+api_url = "http://127.0.0.1"
+
+[inbucket]
+enabled = true
+port = 54324
+smtp_port = 54325
+pop3_port = 54326
+
+[edge_runtime]
+enabled = true
+policy = "oneshot"
+inspector_port = 8083
+
+[functions]
+# Tell the local emulator to serve functions
+include_paths = ["supabase/functions"]
+
+[analytics]
+enabled = true
+port = 54327
+backend = "postgres"
