@@ -203,6 +203,13 @@ export type DataSeam = {
   getOrgMembers(orgId: string): Promise<OrgMember[]>;
   inviteMember(input: { name: string; email: string; role: OrgRole; equipment: EquipmentId }): Promise<OrgMember>;
   setMemberRole(memberId: string, role: OrgRole): Promise<OrgMember[]>;
+  getCompliance(): Promise<ComplianceDossier>;
+  getContractLeads(): Promise<ContractLead[]>;
+  getRateContracts(): Promise<RateContract[]>;
+  getContractReceipts(): Promise<ContractReceipt[]>;
+  sendPacket(leadId: string): Promise<PacketSendResult>;
+  sendForSignature(id: string): Promise<RateContract>;
+  signContract(id: string): Promise<RateContract>;
 };
 
 /* ------------------- Compliance — owner-operator dossier ------------------- */
