@@ -451,7 +451,7 @@ import { MOCK_TRANSPORT_LABEL, OfflineContractSendSeam } from '@/lib/contract-se
 import { portalApi } from '@/lib/mock-api';
 import type { ComplianceDossier, ContractLead, RateContract } from '@/lib/domain';
 
-const LEAD_IDS = ['lead_midlands', 'lead_haley', 'lead_peach', 'lead_piedmont', 'lead_port', 'lead_raleigh'];
+const LEAD_IDS = ['lead_midlands', 'lead_acme', 'lead_peach', 'lead_haley', 'lead_port', 'lead_raleigh'];
 
 describe('packetDraft', () => {
   const dossier: ComplianceDossier = buildDossier();
@@ -498,9 +498,13 @@ describe('buildLeadSeeds', () => {
     expect(midlands.packetRequiresAdditionalInsured).toBe(true);
     expect(midlands.vet.status).toBe('verified');
 
-    const piedmont = leads.find((l) => l.id === 'lead_piedmont')!;
-    expect(piedmont.vet.status).toBe('warning');
-    expect(piedmont.vet.reasons.length).toBeGreaterThan(0);
+    const acme = leads.find((l) => l.id === 'lead_acme')!;
+    expect(acme.packetRequiresAdditionalInsured).toBe(false);
+    expect(acme.vet.status).toBe('verified');
+
+    const haley = leads.find((l) => l.id === 'lead_haley')!;
+    expect(haley.vet.status).toBe('warning');
+    expect(haley.vet.reasons.length).toBeGreaterThan(0);
   });
 });
 
@@ -528,20 +532,20 @@ describe('OfflineContractSendSeam', () => {
 
 describe('portalApi — contracts mutations (smoke, run after the pure tests)', () => {
   it('sends a verified complete packet and records a receipt', async () => {
-    const before = (await portalApi.getContractLeads()).find((l) => l.id === 'lead_haley')!;
+    const before = (await portalApi.getContractLeads()).find((l) => l.id === 'lead_acme')!;
     expect(before.stage).toBe('new');
 
-    const { lead, receipt } = await portalApi.sendPacket('lead_haley');
+    const { lead, receipt } = await portalApi.sendPacket('lead_acme');
     expect(lead.stage).toBe('packet_sent');
     expect(lead.packetSentAt).toBeTruthy();
-    expect(receipt.leadId).toBe('lead_haley');
+    expect(receipt.leadId).toBe('lead_acme');
 
     const receipts = await portalApi.getContractReceipts();
-    expect(receipts.some((r) => r.leadId === 'lead_haley')).toBe(true);
+    expect(receipts.some((r) => r.leadId === 'lead_acme')).toBe(true);
   });
 
   it('refuses to send for an unverified lead or an incomplete packet', async () => {
-    await expect(portalApi.sendPacket('lead_piedmont')).rejects.toThrow('lead_not_verified');
+    await expect(portalApi.sendPacket('lead_haley')).rejects.toThrow('lead_not_verified');
     await expect(portalApi.sendPacket('lead_midlands')).rejects.toThrow('packet_incomplete');
   });
 
@@ -666,9 +670,9 @@ const LEAD_SEEDS: LeadSeed[] = [
     stage: 'new', daysAgo: 2, requiresEndorsement: true,
   },
   {
-    id: 'lead_haley', company: 'Haley Logistics', kind: 'broker', dot: '1900452',
-    contact: 'Maya Reyes · Dispatcher', source: 'Load board — Haley Logistics Board',
-    stage: 'new', daysAgo: 5, requiresEndorsement: false,
+    id: 'lead_acme', company: 'ACME Distribution Center', kind: 'shipper', dot: '3149271',
+    contact: 'Pat Nguyen · Dispatcher', source: 'Direct outreach — current customer',
+    stage: 'new', daysAgo: 4, requiresEndorsement: false,
   },
   {
     id: 'lead_peach', company: 'Peach Steel', kind: 'shipper', dot: '1762293',
@@ -676,9 +680,9 @@ const LEAD_SEEDS: LeadSeed[] = [
     stage: 'negotiating', daysAgo: 9, requiresEndorsement: false,
   },
   {
-    id: 'lead_piedmont', company: 'Piedmont Cold', kind: 'shipper', dot: '2877305',
-    contact: '—', source: 'Cold-line referral', stage: 'vetting', daysAgo: 1,
-    requiresEndorsement: false,
+    id: 'lead_haley', company: 'Haley Logistics', kind: 'broker', dot: '1900452',
+    contact: 'Maya Reyes · Dispatcher', source: 'Load board — Haley Logistics Board',
+    stage: 'vetting', daysAgo: 1, requiresEndorsement: false,
   },
   {
     id: 'lead_port', company: 'Port Logistics', kind: 'broker', dot: '2448903',

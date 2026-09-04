@@ -181,18 +181,25 @@ interface RateContract {
 
 ### Seeded funnel (deterministic, uses existing vetting fixture names only)
 
-1. **Leads** — `Midlands Produce` (shipper, verified, stage `new`), `Haley Logistics`
-   (broker, verified, stage `new`), `Peach Steel` (verified, stage `negotiating`),
-   `Piedmont Cold` (warning — authority inactive — stage `vetting`, flagged "re-check
-   before chasing"), `Port Logistics` (both inactive → shown discouraged).
+Fixture-verified counterparties: ACME Distribution Center, Raleigh Freight Co., Peach
+Steel, Midlands Produce. Fixture-flagged: Haley Logistics (authority active, **no active
+insurance**), Piedmont Cold (authority inactive), Port Logistics (neither active).
+
+1. **Leads** — `Midlands Produce` (shipper, verified, stage `new`), `ACME Distribution
+   Center` (shipper, verified, stage `new`), `Peach Steel` (verified, stage
+   `negotiating`), `Haley Logistics` (broker, warning — no active insurance — stage
+   `vetting`, flagged "verify insurance before you work with them"), `Port Logistics`
+   (both inactive → shown discouraged), and `Raleigh Freight Co.` (verified, stage
+   `signed`).
 2. **Carrier packet** — the composer lists the two `new` leads; default selection is
    `Midlands Produce`. It requires the standard files (COI, authority, W9, rate agreement
    — all on the dossier shelf) **plus an `additional_insured` COI endorsement naming the
-   broker**, which is not yet on file → packet incomplete, and the visible cross-module
-   callout: "Get an updated COI naming Midlands Produce as additional insured" →
-   deep-links to `/portal/compliance` (which shows the COI expiring in 14 days). This is
-   the single deterministic example of a missing doc. `Haley Logistics` has a **complete**
-   packet and is the lead the "Send packet" action works on (→ `packet_sent`).
+   counterparty**, which is not yet on file → packet incomplete, and the visible
+   cross-module callout: "Get an updated COI naming Midlands Produce as additional
+   insured" → deep-links to `/portal/compliance` (which shows the COI expiring in 14
+   days). This is the single deterministic example of a missing doc. `ACME Distribution
+   Center` has a **complete** packet and is the lead the "Send packet" action works on
+   (→ `packet_sent`).
 3. **Rate confirm** — for `Peach Steel`, an accepted rate-confirm `RC-2026-0417`
    rendered as a contract card with full terms, status `confirmed`, CTA "Send for
    signature" → `sent`.
@@ -211,9 +218,12 @@ items drive the compliance deep-link CTA.
 
 - `POST /api/portal/contracts` `{ action: 'send_packet', leadId }` →
   `portalApi.sendPacket(leadId)` sets `stage = 'packet_sent'`, `packetSentAt`, records a
-  transport result.
+  transport result. Only verified leads with a complete packet may send.
+- `POST /api/portal/contracts` `{ action: 'send_for_signature', id }` →
+  `portalApi.sendForSignature(id)` sets `status = 'sent'`, `sentAt`.
 - `POST /api/portal/contracts` `{ action: 'sign', id }` →
-  `portalApi.signContract(id)` sets `status = 'signed'`, `signedAt`.
+  `portalApi.signContract(id)` sets `status = 'signed'`, `signedAt` and advances the
+  lead to `signed`.
 Client components call the route then `router.refresh()`, same as the accept-load flow.
 
 ### Honest transport seam
