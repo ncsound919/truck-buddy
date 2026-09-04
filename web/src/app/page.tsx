@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { SiteHeader } from '@/components/site/site-header';
 import { SiteFooter } from '@/components/site/site-footer';
 import { Reveal } from '@/components/reveal';
+import { PageViewBeacon } from '@/components/ops/page-view-beacon';
 import { Badge } from '@/components/ui/badge';
 import { ButtonLink } from '@/components/ui/button';
 import { Kicker } from '@/components/ui/card';
@@ -42,6 +43,7 @@ export default function HomePage() {
   return (
     <>
       <SiteHeader />
+      <PageViewBeacon />
       <main>
         <Hero />
         <StatsBar />
