@@ -45,3 +45,9 @@ example
 # generated native folders
 /ios
 /android
+
+# Next.js (web app)
+web/.next/
+web/.vercel/
+web/coverage/
+web/dev.log
