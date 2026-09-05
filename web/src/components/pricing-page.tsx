@@ -1,17 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CheckIcon } from "@/components/icons";
-import { createCheckoutSession, TIER_FEATURES, STRIPE_PRODUCT_IDS } from "@/lib/stripe-client";
+import { createCheckoutSession, TIER_FEATURES } from "@/lib/stripe-client";
+
+interface LivePrice {
+  tier: string;
+  amount: number;
+  currency: string;
+  interval: string;
+  active: boolean;
+}
+
+function formatPrice(p: LivePrice | undefined): string {
+  if (!p) return "…";
+  return `$${(p.amount / 100).toFixed(p.amount % 100 === 0 ? 0 : 2)}/${p.interval === "year" ? "yr" : "mo"}`;
+}
 
 interface PricingCardProps {
   tier: "basic" | "pro" | "enterprise";
   currentTier?: string;
+  priceLabel: string;
   onSubscribe: (tier: "basic" | "pro" | "enterprise") => Promise<void>;
   loading: boolean;
 }
 
-function PricingCard({ tier, currentTier, onSubscribe, loading }: PricingCardProps) {
+function PricingCard({ tier, currentTier, priceLabel, onSubscribe, loading }: PricingCardProps) {
   const features = TIER_FEATURES[tier];
   const isCurrent = currentTier === tier;
   const [isLoading, setIsLoading] = useState(false);
@@ -43,7 +57,7 @@ function PricingCard({ tier, currentTier, onSubscribe, loading }: PricingCardPro
         <p className="mt-1 text-sm text-muted">{features.description}</p>
       </div>
       <div className="mb-6">
-        <span className="text-4xl font-black text-ink">{features.price}</span>
+        <span className="text-4xl font-black text-ink">{priceLabel}</span>
       </div>
       <ul className="mb-6 space-y-3">
         {features.features.map((feature, i) => (
@@ -82,20 +96,41 @@ interface PricingPageProps {
 export function PricingPage({ currentTier = "basic", userId }: PricingPageProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [prices, setPrices] = useState<LivePrice[] | null>(null);
+  const [pricesError, setPricesError] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/stripe/prices")
+      .then((r) => {
+        if (!r.ok) throw new Error(`prices_${r.status}`);
+        return r.json();
+      })
+      .then((d) => setPrices(d.prices as LivePrice[]))
+      .catch(() => setPricesError(true));
+  }, []);
 
   async function handleSubscribe(tier: "basic" | "pro" | "enterprise") {
     setLoading(true);
     setError(null);
     try {
-      const response = await createCheckoutSession(tier, userId || "anonymous");
+      const response = await createCheckoutSession(tier);
       if (response.url) {
         window.location.href = response.url;
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to start checkout");
+      const msg = e instanceof Error ? e.message : "Failed to start checkout";
+      // Not signed in → start sign-in, then come back to pricing.
+      if (msg.includes("401") || msg.toLowerCase().includes("unauthorized")) {
+        window.location.href = "/auth?next=/portal/pricing";
+        return;
+      }
+      setError(msg);
       setLoading(false);
     }
   }
+
+  const priceFor = (tier: string) =>
+    pricesError ? "Unavailable" : formatPrice(prices?.find((p) => p.tier === tier));
 
   return (
     <div className="mx-auto max-w-5xl py-12 px-4">
@@ -116,18 +151,21 @@ export function PricingPage({ currentTier = "basic", userId }: PricingPageProps)
         <PricingCard
           tier="basic"
           currentTier={currentTier}
+          priceLabel={priceFor("basic")}
           onSubscribe={handleSubscribe}
           loading={loading}
         />
         <PricingCard
           tier="pro"
           currentTier={currentTier}
+          priceLabel={priceFor("pro")}
           onSubscribe={handleSubscribe}
           loading={loading}
         />
         <PricingCard
           tier="enterprise"
           currentTier={currentTier}
+          priceLabel={priceFor("enterprise")}
           onSubscribe={handleSubscribe}
           loading={loading}
         />

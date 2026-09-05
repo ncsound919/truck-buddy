@@ -8,7 +8,8 @@
     "scheme": "truckbuddy",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/images/icon.png",
+      "bundleIdentifier": "com.truckbuddy.app"
     },
     "android": {
       "adaptiveIcon": {
@@ -20,13 +21,11 @@
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.READ_CONTACTS",
-        "android.permission.WRITE_CONTACTS"
+        "android.permission.READ_CONTACTS"
       ],
-      "package": "com.anonymous.truckbuddy"
+      "package": "com.truckbuddy.app"
     },
     "web": {
       "output": "static",
@@ -65,8 +64,8 @@
       "reactCompiler": true
     },
     "extra": {
-      "supabaseUrl": "",
-      "supabaseAnonKey": "",
+      "supabaseUrl": "https://bxjtmcumkffcbzuhusxn.supabase.co",
+      "supabaseAnonKey": "sb_publishable_TPLtkfxtvxXRWFY_K7FMuw_CQ58kVcI",
       "dispatchFunctionPath": "/functions/v1/dispatch-send"
     }
   }

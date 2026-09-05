@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 import { BrandLogo } from '@/components/brand-logo';
+import { useSession } from '@/components/auth/session-provider';
 import { MenuIcon, CloseIcon } from '@/components/icons';
 import { cn } from '@/lib/cn';
 
@@ -18,6 +19,7 @@ const NAV = [
 export function SiteHeader() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const { user, loading } = useSession();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -43,15 +45,31 @@ export function SiteHeader() {
           ))}
         </nav>
         <div className="hidden items-center gap-3 md:flex">
-          <Link href="/portal" className="text-[15px] font-semibold text-ink-2 hover:text-accent">
-            Sign in
-          </Link>
-          <Link
-            href="/portal"
-            className="inline-flex h-10 items-center justify-center rounded-xl bg-accent px-4 text-[15px] font-bold text-white transition hover:bg-accent-600"
-          >
-            Open portal
-          </Link>
+          {loading ? null : user ? (
+            <>
+              <Link href="/account" className="text-[15px] font-semibold text-ink-2 hover:text-accent">
+                {user.name?.split(' ')[0] || user.email?.split('@')[0] || 'Account'}
+              </Link>
+              <Link
+                href="/portal"
+                className="inline-flex h-10 items-center justify-center rounded-xl bg-accent px-4 text-[15px] font-bold text-white transition hover:bg-accent-600"
+              >
+                Open portal
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link href="/auth" className="text-[15px] font-semibold text-ink-2 hover:text-accent">
+                Sign in
+              </Link>
+              <Link
+                href="/auth?mode=sign-up"
+                className="inline-flex h-10 items-center justify-center rounded-xl bg-accent px-4 text-[15px] font-bold text-white transition hover:bg-accent-600"
+              >
+                Get started
+              </Link>
+            </>
+          )}
         </div>
         <button
           className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-ink md:hidden"
@@ -76,11 +94,11 @@ export function SiteHeader() {
             </Link>
           ))}
           <Link
-            href="/portal"
+            href={user ? '/portal' : '/auth?mode=sign-up'}
             onClick={() => setOpen(false)}
             className="mt-3 flex h-11 items-center justify-center rounded-xl bg-accent font-bold text-white"
           >
-            Open portal
+            {user ? 'Open portal' : 'Get started'}
           </Link>
         </nav>
       ) : null}

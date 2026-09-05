@@ -22,7 +22,7 @@ export function SiteFooter() {
             <div className="flex flex-col gap-2.5">
               <span className="font-bold text-white">Company</span>
               <Link href="/#for-carriers" className="hover:text-white">For carriers</Link>
-              <a href="mailto:hello@truckbuddy.app" className="hover:text-white">Contact</a>
+              <a href="mailto:hello@truckbuddy.online" className="hover:text-white">Contact</a>
             </div>
             <div className="flex flex-col gap-2.5">
               <span className="font-bold text-white">App</span>

@@ -46,17 +46,16 @@ export interface StripeCheckoutResponse {
 
 export async function createCheckoutSession(
   tier: keyof typeof STRIPE_PRODUCT_IDS,
-  userId: string,
 ): Promise<StripeCheckoutResponse> {
   const res = await fetch("/api/stripe/checkout", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ tier, userId }),
+    body: JSON.stringify({ tier }),
   });
 
   if (!res.ok) {
     const error = await res.json().catch(() => null);
-    throw new Error(error?.message || "Checkout failed");
+    throw new Error(error?.error || `Checkout failed (${res.status})`);
   }
 
   return res.json();
@@ -111,17 +110,16 @@ export async function getInvoice(id: string): Promise<Invoice> {
 export async function createOneOffInvoice(
   amount: number,
   description: string,
-  userId: string,
 ): Promise<{ invoiceId: string; hostedUrl: string }> {
   const res = await fetch("/api/stripe/invoice", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ amount, description, userId }),
+    body: JSON.stringify({ amount, description }),
   });
 
   if (!res.ok) {
     const error = await res.json().catch(() => null);
-    throw new Error(error?.message || "Invoice creation failed");
+    throw new Error(error?.error || "Invoice creation failed");
   }
 
   return res.json();

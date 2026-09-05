@@ -18,19 +18,39 @@ async function fetchInvoices(): Promise<Invoice[]> {
   }
 }
 
+interface SubscriptionInfo {
+  stripe_subscription_id?: string | null;
+  subscription_tier?: string | null;
+  subscription_status?: string | null;
+  subscription_period_end?: string | null;
+}
+
+async function fetchSubscription(): Promise<SubscriptionInfo | null> {
+  try {
+    const res = await fetch("/api/stripe/subscription");
+    if (!res.ok) return null;
+    const data = await res.json();
+    return (data.subscription ?? null) as SubscriptionInfo | null;
+  } catch {
+    return null;
+  }
+}
+
 export function BillingSection() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchInvoices().then((data) => {
-      setInvoices(data);
+    Promise.all([fetchInvoices(), fetchSubscription()]).then(([inv, sub]) => {
+      setInvoices(inv);
+      setSubscription(sub);
       setLoading(false);
     });
   }, []);
 
-  const currentTier = "basic"; // In a real app, this would come from the org membership
-  const tierInfo = TIER_FEATURES[currentTier];
+  const currentTier = subscription?.subscription_tier || "basic";
+  const tierInfo = TIER_FEATURES[currentTier] || TIER_FEATURES.basic;
 
   return (
     <SectionCardWithTitle
@@ -50,25 +70,16 @@ export function BillingSection() {
             <div>
               <h3 className="text-sm font-bold text-ink">Current plan</h3>
               <p className="text-2xl font-black text-accent">{tierInfo.name}</p>
-              <p className="text-xs text-faint">{tierInfo.price} / month</p>
+              <p className="text-xs text-faint">
+                {subscription?.subscription_status
+                  ? `Status: ${subscription.subscription_status}`
+                  : "No active subscription"}
+                {subscription?.subscription_period_end
+                  ? ` · renews ${new Date(subscription.subscription_period_end).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
+                  : ""}
+              </p>
             </div>
             <Badge tone="success">{currentTier.toUpperCase()}</Badge>
-          </div>
-        </div>
-
-        {/* Payment Method */}
-        <div className="rounded-lg border border-line p-4">
-          <h3 className="mb-2 text-sm font-bold text-ink">Payment method</h3>
-          <div className="flex items-center gap-3">
-            <div className="flex h-8 w-12 items-center justify-center rounded bg-ink text-xs font-bold text-white">
-              VISA
-            </div>
-            <div className="text-sm text-ink-2">•••• •••• •••• 4242</div>
-            <Link href="https://dashboard.stripe.com/test/customers" target="_blank">
-              <span className="text-xs font-bold text-accent hover:underline">
-                Update in Stripe
-              </span>
-            </Link>
           </div>
         </div>
 

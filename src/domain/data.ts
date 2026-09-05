@@ -137,7 +137,7 @@ export async function buildDemoSession(): Promise<TodaySession> {
       id: DEMO_DRIVER_ID,
       name: 'Terrence',
       phone: '+1 (919) 555-0134',
-      email: 'terrence@truckbuddy.app',
+      email: 'terrence@truckbuddy.online',
       membershipTier: 'pro',
     },
     vehicle: DEMO_VEHICLE,
@@ -180,10 +180,10 @@ export function delay(ms: number): Promise<void> {
 /* Driver-aid fixtures: contacts, memory seeds, prefs, message builders */
 /* ------------------------------------------------------------------ */
 
-/** Contacts the driver can reach one-handed. Real app reads the device
- *  contact list (expo-contacts) and merges it with fleet dispatch records. */
+/** Fleet + dispatch seed records. The API seam merges these with the
+ *  device address book (expo-contacts) at runtime — see getContacts. */
 export const DEMO_CONTACTS: Contact[] = [
-  { id: 'c_dispatch', role: 'dispatch', label: 'Dispatch · HQ', phone: '+1 (800) 555-0199', email: 'dispatch@truckbuddy.app' },
+  { id: 'c_dispatch', role: 'dispatch', label: 'Dispatch · HQ', phone: '+1 (800) 555-0199', email: 'dispatch@truckbuddy.online' },
   { id: 'c_acme', role: 'consignee', label: 'ACME Distribution', phone: '+1 (704) 555-0142', email: 'dock@acmefreight.example' },
   { id: 'c_haley', role: 'consignee', label: 'Haley Logistics', phone: '+1 (336) 555-0188', email: 'receiving@haleylogistics.example' },
   { id: 'c_carolina', role: 'consignee', label: 'Carolina Cold Storage', phone: '+1 (336) 555-0177', email: 'gate@carolinacold.example' },
@@ -200,6 +200,8 @@ export const DEFAULT_PREFS: DriverPrefs = {
   sendEodReport: true,
   notifyConsigneeOnArrival: false,
   dispatchTransport: 'mock',
+  smsCarriers: {},
+  contactPhones: {},
 };
 
 /** Backfills prefs stored before a field existed (cheap migration). */

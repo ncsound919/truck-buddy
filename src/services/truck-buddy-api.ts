@@ -67,12 +67,13 @@ export interface TruckBuddyApi {
    * only. Nothing reaches the network.
    *
    * When `transport` is `'live'`: POSTs to the Supabase Edge Function
-   * `dispatch-send` which calls Resend. On failure or when the function URL
+   * `dispatch-send`. Email goes through Resend; SMS goes through the
+   * recipient carrier's email-to-SMS gateway (free, no telecom account —
+   * needs `carrier` on the message). On failure or when the function URL
    * is not configured, falls back to the mock and marks the message `queued`.
    *
-   * SMS and voice kinds are **not yet wired** — they return a 501 and the
-   * message falls through to the mock. Wire them the same way when you add
-   * Twilio/Bandwidth.
+   * Automated `call` is not offered (no voice provider): dial from the
+   * device phone app via `openCall` instead.
    */
   sendDispatch(message: Dispatch): Promise<Dispatch>;
 }
@@ -125,6 +126,12 @@ async function sendViaResend(
     dispatchId: message.id,
   };
   if (message.category) body.category = message.category;
+  if (message.kind === 'sms') {
+    if (!message.carrier) {
+      throw new Error('sms needs the recipient carrier on file');
+    }
+    body.carrier = message.carrier;
+  }
 
   const res = await fetch(url, {
     method: 'POST',
@@ -196,8 +203,30 @@ export class MockTruckBuddyApi implements TruckBuddyApi {
   }
 
   async getContacts(): Promise<Contact[]> {
-    const { DEMO_CONTACTS } = await import('@/domain/data');
-    return DEMO_CONTACTS;
+    const { DEMO_CONTACTS, uid } = await import('@/domain/data');
+    const seeds = DEMO_CONTACTS.map((c) => ({ ...c }));
+    try {
+      const Contacts = await import('expo-contacts');
+      const { status } = await Contacts.requestPermissionsAsync().catch(() => ({ status: 'denied' as const }));
+      if (status !== 'granted') return seeds;
+      const { data } = await Contacts.getContactsAsync({
+        fields: [Contacts.Fields.Name, Contacts.Fields.PhoneNumbers],
+        pageSize: 50,
+        pageOffset: 0,
+      });
+      const seen = new Set(seeds.map((c) => (c.phone ?? '').replace(/\D/g, '')));
+      for (const person of data ?? []) {
+        const number = person.phoneNumbers?.[0]?.number?.replace(/\D/g, '') ?? '';
+        const name = person.name?.trim() ?? '';
+        if (!name || !number || seen.has(number) || seen.has(number.slice(-10))) continue;
+        seen.add(number);
+        seen.add(number.slice(-10));
+        seeds.push({ id: `dev_${uid()}`, role: 'consignee', label: name, phone: number });
+      }
+    } catch {
+      // No address book on this platform (or denied) — fleet seeds stand alone.
+    }
+    return seeds;
   }
 
   async getPrefs(): Promise<DriverPrefs> {
@@ -212,7 +241,7 @@ export class MockTruckBuddyApi implements TruckBuddyApi {
 
   async sendDispatch(message: Dispatch): Promise<Dispatch> {
     const prefs = getLivePrefs();
-    if (prefs.dispatchTransport === 'live' && message.kind === 'email') {
+    if (prefs.dispatchTransport === 'live' && (message.kind === 'email' || message.kind === 'sms')) {
       try {
         const { sent } = await sendViaResend(message, getDispatchConfig());
         return sent;

@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 
 import { portalApi } from '@/lib/mock-api';
+import { requirePortalUser } from '@/lib/portal-guard';
 
 export async function GET() {
+  const denied = await requirePortalUser();
+  if (denied) return denied;
   const [orgs, membership] = await Promise.all([
     portalApi.getOrganizations(),
     portalApi.getMembership(),
@@ -11,6 +14,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const denied = await requirePortalUser();
+  if (denied) return denied;
   let orgId: string;
   try {
     const body = (await req.json()) as { orgId?: string };

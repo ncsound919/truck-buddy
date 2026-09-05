@@ -95,6 +95,14 @@ export function SummaryScreen() {
 export function EndedScreen() {
   const flow = useFlow();
   const dark = useIsDark();
+  const eod = flow.state.aidLog.find((d) => d.kind === 'email' && d.subject === 'End-of-day report');
+  const eodLine = !flow.state.prefs?.sendEodReport
+    ? 'End-of-day report is off. Turn it on in My tools to email fleet.'
+    : eod == null
+      ? 'Shift logged on this device.'
+      : eod.status === 'sent'
+        ? 'End-of-day report emailed to the fleet. Drive safe.'
+        : 'End-of-day report queued — it sends when you’re back online. Drive safe.';
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <View style={[styles.body, styles.centered]}>
@@ -105,7 +113,7 @@ export function EndedScreen() {
           Shift Logged
         </Text>
         <Text style={[styles.muted, styles.centerText]}>
-          Report synced to the fleet portal. Drive safe.
+          {eodLine}
         </Text>
         <View style={styles.spacer} />
         <BigButton label="Restart Demo Day" tone="secondary" onPress={flow.reset} />

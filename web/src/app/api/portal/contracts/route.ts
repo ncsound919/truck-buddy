@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { portalApi } from '@/lib/mock-api';
+import { requirePortalUser } from '@/lib/portal-guard';
 
 /**
  * Portal contracts — reads and the funnel mutations.
@@ -11,6 +12,8 @@ import { portalApi } from '@/lib/mock-api';
  * is visible on the next server render.
  */
 export async function GET() {
+  const denied = await requirePortalUser();
+  if (denied) return denied;
   const [leads, rateContracts, receipts] = await Promise.all([
     portalApi.getContractLeads(),
     portalApi.getRateContracts(),
@@ -28,6 +31,8 @@ const ERROR_STATUS: Record<string, number> = {
 };
 
 export async function POST(req: Request) {
+  const denied = await requirePortalUser();
+  if (denied) return denied;
   let body: { action?: string; leadId?: string; id?: string };
   try {
     body = (await req.json()) as typeof body;

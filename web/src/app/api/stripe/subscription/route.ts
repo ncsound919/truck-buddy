@@ -1,15 +1,25 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
+import { getSupabaseServer, getSessionUser } from "@/lib/supabase/server";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "sk_test_placeholder", {
-  apiVersion: "2026-08-26.dahlia",
-});
+const stripeKey = process.env.STRIPE_SECRET_KEY || "";
 
 export async function GET() {
+  if (!stripeKey) {
+    return NextResponse.json({ error: "billing_not_configured" }, { status: 503 });
+  }
+  const user = await getSessionUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
-    // In a real implementation, you'd get the subscription ID from your database
-    // For now, return a placeholder response
-    return NextResponse.json({ subscriptionId: null });
+    const sb = await getSupabaseServer();
+    const { data: profile } = await sb
+      .from("profiles")
+      .select("stripe_subscription_id, subscription_tier, subscription_status, subscription_period_end")
+      .eq("id", user.id)
+      .single();
+    return NextResponse.json({ subscription: profile ?? null });
   } catch (error) {
     console.error("Stripe subscription error:", error);
     return NextResponse.json(
@@ -20,6 +30,14 @@ export async function GET() {
 }
 
 export async function DELETE(request: Request) {
+  if (!stripeKey) {
+    return NextResponse.json({ error: "billing_not_configured" }, { status: 503 });
+  }
+  const user = await getSessionUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const stripe = new Stripe(stripeKey, { apiVersion: "2026-08-26.dahlia" });
   try {
     const { subscriptionId } = await request.json();
 
@@ -28,6 +46,17 @@ export async function DELETE(request: Request) {
         { error: "Subscription ID required" },
         { status: 400 }
       );
+    }
+
+    // Verify the subscription belongs to this user before canceling.
+    const sb = await getSupabaseServer();
+    const { data: profile } = await sb
+      .from("profiles")
+      .select("stripe_subscription_id")
+      .eq("id", user.id)
+      .single();
+    if ((profile as { stripe_subscription_id?: string } | null)?.stripe_subscription_id !== subscriptionId) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const canceled = await stripe.subscriptions.cancel(subscriptionId);

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { portalApi } from '@/lib/mock-api';
+import { requirePortalUser } from '@/lib/portal-guard';
 
 /**
  * Portal loads — reads and the one mutation (accept) that drives shared state.
@@ -12,6 +13,8 @@ import { portalApi } from '@/lib/mock-api';
  * server render (and, via the same base URL, to the mobile app client).
  */
 export async function GET() {
+  const denied = await requirePortalUser();
+  if (denied) return denied;
   const [loads, open, sources] = await Promise.all([
     portalApi.getLoads(),
     portalApi.getOpenLoads(),
@@ -25,6 +28,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const denied = await requirePortalUser();
+  if (denied) return denied;
   let id: string;
   try {
     const body = (await req.json()) as { id?: string };

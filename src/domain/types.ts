@@ -157,10 +157,24 @@ export interface Contact {
   /** Human-readable label — company or person's name. */
   label: string;
   phone?: string;
+  /** Recipient's mobile carrier — required for live SMS (gateway routing). */
+  smsCarrier?: SmsCarrierId;
   email?: string;
 }
 
 export type DispatchKind = 'sms' | 'email' | 'call';
+
+/** Carriers with an email-to-SMS gateway the dispatch function can reach
+ *  (no telecom account needed). The recipient's carrier must be on file. */
+export type SmsCarrierId = 'verizon' | 'att' | 'tmobile' | 'uscellular' | 'cricket';
+
+export const SMS_CARRIERS: readonly { id: SmsCarrierId; label: string }[] = [
+  { id: 'verizon', label: 'Verizon' },
+  { id: 'att', label: 'AT&T' },
+  { id: 'tmobile', label: 'T-Mobile' },
+  { id: 'uscellular', label: 'US Cellular' },
+  { id: 'cricket', label: 'Cricket' },
+];
 
 export type DispatchStatus = 'queued' | 'sent' | 'failed';
 
@@ -178,6 +192,11 @@ export interface Dispatch {
   body?: string;
   status: DispatchStatus;
   at: string;
+  /**
+   * Required for kind 'sms' on the live transport: selects the
+   * email-to-SMS gateway. Send fails fast without it.
+   */
+  carrier?: SmsCarrierId;
   /** Coarse reason bucket used by the activity log / summary. */
   category?: DispatchCategory;
 }
@@ -233,6 +252,16 @@ export interface DriverPrefs {
    *           Failure falls back to the mock and tags the message.
    */
   dispatchTransport: 'mock' | 'live';
+  /**
+   * Per-contact SMS carrier (contact id → carrier), set by the driver in
+   * My Tools. Live SMS needs this to pick the email-to-SMS gateway.
+   */
+  smsCarriers: Record<string, SmsCarrierId>;
+  /**
+   * Per-contact phone overrides (contact id → digits). Demo seeds ship
+   * fictional 555 numbers; the driver enters the real ones once here.
+   */
+  contactPhones: Record<string, string>;
 }
 
 /* ------------------------------------------------------------------ */

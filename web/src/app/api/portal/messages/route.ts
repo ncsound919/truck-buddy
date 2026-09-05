@@ -1,12 +1,17 @@
 import { NextResponse } from 'next/server';
 
 import { portalApi } from '@/lib/mock-api';
+import { requirePortalUser } from '@/lib/portal-guard';
 
 export async function GET() {
+  const denied = await requirePortalUser();
+  if (denied) return denied;
   return NextResponse.json({ messages: await portalApi.getMessages() });
 }
 
 export async function POST(req: Request) {
+  const denied = await requirePortalUser();
+  if (denied) return denied;
   let text: string;
   try {
     const body = (await req.json()) as { text?: string };

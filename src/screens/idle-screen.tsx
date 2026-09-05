@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { router } from 'expo-router';
-import { Image, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Image, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BigButton, Pill } from '@/components/ui';
 import { Brand, useIsDark } from '@/constants/brand';
 import { Spacing } from '@/constants/theme';
 import { profileLabel } from '@/domain/profile';
+import { SMS_CARRIERS } from '@/domain/types';
+import type { SmsCarrierId } from '@/domain/types';
 import { useOperatingProfile } from '@/hooks/use-operating-profile';
 import { useFlow } from '@/store/flow';
 
@@ -137,8 +139,8 @@ export function IdleScreen() {
                 </View>
                 <Text style={styles.noteText}>
                   {prefs?.dispatchTransport === 'live'
-                    ? 'Live: emails go through the Supabase function → Resend. Off if the server is down.'
-                    : 'Mock: emails only land in the in-app activity log. Flip on when the function is configured.'}
+                    ? 'Live: emails go through the Supabase function → Resend; texts go through your recipient’s carrier gateway. Queued items retry when you’re back online.'
+                    : 'Mock: messages only land in the in-app activity log. Flip on when the function is configured.'}
                 </Text>
               </View>
 
@@ -207,6 +209,55 @@ export function IdleScreen() {
                 ) : null}
               </View>
 
+              <Text style={styles.sectionKicker}>Text message setup</Text>
+              <View style={styles.sectionCard}>
+                <Text style={styles.noteText}>
+                  Texts send through each recipient’s carrier gateway — free, no extra
+                  account. Enter the real mobile number and pick its carrier.
+                </Text>
+                {state.contacts
+                  .filter((c) => c.phone)
+                  .map((c) => {
+                    const number = prefs?.contactPhones[c.id] ?? c.phone ?? '';
+                    const carrier: SmsCarrierId | undefined = prefs?.smsCarriers[c.id];
+                    const carrierLabel =
+                      SMS_CARRIERS.find((s) => s.id === carrier)?.label ?? 'Pick carrier';
+                    const cycleCarrier = () => {
+                      const ids = SMS_CARRIERS.map((s) => s.id);
+                      const next = ids[(ids.indexOf(carrier as SmsCarrierId) + 1) % ids.length] as SmsCarrierId;
+                      void flow.setPref({
+                        smsCarriers: { ...(prefs?.smsCarriers ?? {}), [c.id]: next },
+                      });
+                    };
+                    return (
+                      <View key={c.id} style={styles.smsRow}>
+                        <Text style={styles.smsLabel}>{c.label}</Text>
+                        <View style={styles.smsEdit}>
+                          <TextInput
+                            style={styles.smsInput}
+                            value={number}
+                            onChangeText={(v) =>
+                              flow.setPref({
+                                contactPhones: { ...(prefs?.contactPhones ?? {}), [c.id]: v },
+                              })
+                            }
+                            keyboardType="phone-pad"
+                            placeholder="Mobile number"
+                            placeholderTextColor="#6E7F97"
+                            accessibilityLabel={`Mobile number for ${c.label}`}
+                          />
+                          <Pressable
+                            style={styles.smsCarrier}
+                            onPress={cycleCarrier}
+                            accessibilityLabel={`Carrier for ${c.label}: ${carrierLabel}`}>
+                            <Text style={styles.smsCarrierText}>{carrierLabel}</Text>
+                          </Pressable>
+                        </View>
+                      </View>
+                    );
+                  })}
+              </View>
+
               <Text style={styles.sectionKicker}>Paperwork email · {forwardTarget?.label ?? 'none set'}</Text>
               <View style={styles.sectionCard}>
                 <Pressable
@@ -261,7 +312,9 @@ export function IdleScreen() {
                       <Text style={styles.activitySubject}>
                         {d.kind === 'email' ? '📧' : d.kind === 'sms' ? '💬' : '📞'} {d.subject}
                       </Text>
-                      <Text style={styles.activityMeta}>{d.to.label}</Text>
+                      <Text style={styles.activityMeta}>
+                        {d.to.label} · {d.status === 'sent' ? 'sent' : 'queued — retries when online'}
+                      </Text>
                     </View>
                   ))}
                 </View>
@@ -349,6 +402,20 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.three, borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#263349', gap: 2,
   },
+  smsRow: {
+    paddingVertical: Spacing.three, borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#263349', gap: 8,
+  },
+  smsLabel: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+  smsEdit: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  smsInput: {
+    flex: 1, color: '#FFFFFF', fontSize: 15, fontWeight: '600',
+    backgroundColor: '#0E1A2E', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10,
+  },
+  smsCarrier: {
+    backgroundColor: Brand.accent, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 10,
+  },
+  smsCarrierText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
   activitySubject: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
   activityMeta: { color: '#8FA1BB', fontSize: 12.5, fontWeight: '600' },
   closeBtn: { alignItems: 'center', paddingVertical: Spacing.three },

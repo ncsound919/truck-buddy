@@ -3,10 +3,11 @@ import { Linking } from 'react-native';
 import type { Contact } from '@/domain/types';
 
 /**
- * One-tap outreach (spec: auto text / call back). These hand off to the OS via
- * deep links, so the driver never types. True *background auto-send* of SMS and
- * email requires a telecom/SMTP gateway and is out of scope for the offline app —
- * those flows are represented by the API seam's `sendDispatch`.
+ * One-tap outreach (spec: auto text / call back). `openCall` / `openSms` /
+ * `openEmail` hand off to the OS apps via deep links, so the driver never
+ * types — the message travels on the driver's own carrier plan. Fully
+ * automatic sending (no tap) goes through the API seam's `sendDispatch`:
+ * email direct, SMS via the recipient's carrier gateway.
  */
 
 function strip(phone?: string): string {

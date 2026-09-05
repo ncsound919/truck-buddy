@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server';
 
 import { portalApi } from '@/lib/mock-api';
+import { requirePortalUser } from '@/lib/portal-guard';
 import type { EquipmentId, OrgRole } from '@/lib/domain';
 
 export async function GET(req: Request) {
+  const denied = await requirePortalUser();
+  if (denied) return denied;
   const orgId = new URL(req.url).searchParams.get('orgId') ?? undefined;
   const active = await portalApi.getMembership();
   const members = await portalApi.getOrgMembers(orgId ?? active.org.id);
@@ -11,6 +14,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const denied = await requirePortalUser();
+  if (denied) return denied;
   let body: { name?: string; email?: string; role?: OrgRole; equipment?: EquipmentId };
   try {
     body = (await req.json()) as typeof body;
@@ -34,6 +39,8 @@ export async function POST(req: Request) {
 }
 
 export async function PATCH(req: Request) {
+  const denied = await requirePortalUser();
+  if (denied) return denied;
   let body: { memberId?: string; role?: OrgRole };
   try {
     body = (await req.json()) as typeof body;

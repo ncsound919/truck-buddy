@@ -59,11 +59,16 @@ img { max-width: 100%; display: block; }
 .btn-light:hover { background: #e8f0ff; }
 .btn-outline-light { color: #fff; border-color: rgba(255,255,255,0.5); }
 .btn-outline-light:hover { background: rgba(255,255,255,0.1); }
+a:focus-visible, button:focus-visible, .btn:focus-visible {
+  outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 6px;
+}
+.cta a:focus-visible { outline-color: #fff; }
 
 /* ---------- Header / nav ---------- */
 .site-header {
   position: sticky; top: 0; z-index: 50;
   background: rgba(255, 255, 255, 0.82);
+  -webkit-backdrop-filter: saturate(180%) blur(12px);
   backdrop-filter: saturate(180%) blur(12px);
   border-bottom: 1px solid var(--line);
 }
@@ -102,7 +107,7 @@ img { max-width: 100%; display: block; }
 /* phone mock */
 .phone-wrap { position: relative; display: flex; justify-content: center; padding-bottom: 60px; }
 .phone {
-  width: 300px; aspect-ratio: 9/19; border-radius: 46px;
+  width: min(300px, 100%); aspect-ratio: 9/19; border-radius: 46px;
   background: var(--surface); border: 10px solid #0e1c33;
   box-shadow: var(--shadow); position: relative; overflow: hidden;
 }

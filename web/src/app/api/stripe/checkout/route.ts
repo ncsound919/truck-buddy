@@ -1,23 +1,28 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
+import { getSessionUser } from "@/lib/supabase/server";
 
-// Initialize Stripe with secret key
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "sk_test_placeholder", {
-  apiVersion: "2026-08-26.dahlia",
-});
+const stripeKey = process.env.STRIPE_SECRET_KEY || "";
+
+const PRICE_IDS: Record<string, string> = {
+  basic: process.env.NEXT_PUBLIC_STRIPE_PRICE_BASIC || "",
+  pro: process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO || "",
+  enterprise: process.env.NEXT_PUBLIC_STRIPE_PRICE_ENTERPRISE || "",
+};
 
 export async function POST(request: Request) {
+  if (!stripeKey || !PRICE_IDS.basic || !PRICE_IDS.pro || !PRICE_IDS.enterprise) {
+    return NextResponse.json({ error: "billing_not_configured" }, { status: 503 });
+  }
+  const user = await getSessionUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const stripe = new Stripe(stripeKey, { apiVersion: "2026-08-26.dahlia" });
   try {
-    const { tier, userId } = await request.json();
+    const { tier } = await request.json();
 
-    // Validate tier
-    const priceIdMap: Record<string, string> = {
-      basic: process.env.NEXT_PUBLIC_STRIPE_PRICE_BASIC!,
-      pro: process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO!,
-      enterprise: process.env.NEXT_PUBLIC_STRIPE_PRICE_ENTERPRISE!,
-    };
-
-    const priceId = priceIdMap[tier];
+    const priceId = PRICE_IDS[tier as string];
     if (!priceId) {
       return NextResponse.json(
         { error: "Invalid tier specified" },
@@ -28,7 +33,7 @@ export async function POST(request: Request) {
     // Get the base URL for redirect
     const origin = request.headers.get("origin") || "http://localhost:3000";
 
-    // Create checkout session
+    // Create checkout session (userId always comes from the session, never the client)
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       payment_method_types: ["card"],
@@ -41,7 +46,7 @@ export async function POST(request: Request) {
       success_url: `${origin}/portal/money?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/portal/money`,
       metadata: {
-        userId,
+        userId: user.id,
         tier,
       },
     });

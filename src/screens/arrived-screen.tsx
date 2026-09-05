@@ -90,7 +90,10 @@ export function ArrivedScreen() {
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <View style={styles.body}>
         <View style={styles.head}>
-          <Pill dot="success" label="Geofence reached" />
+          <Pill
+            dot="success"
+            label={state.arrivalVia === 'gps' ? 'Geofence reached' : 'Arrived'}
+          />
           <Text style={[styles.arrived, { color: dark ? '#FFFFFF' : '#101828' }]}>
             You Have Arrived
           </Text>

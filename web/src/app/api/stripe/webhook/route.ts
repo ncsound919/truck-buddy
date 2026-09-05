@@ -1,12 +1,26 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { createClient } from "@/lib/supabase-client";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "sk_test_placeholder", {
-  apiVersion: "2026-08-26.dahlia",
-});
-
+const stripeKey = process.env.STRIPE_SECRET_KEY || "";
 const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET || "";
+
+function getStripe(): Stripe {
+  if (!stripeKey) throw new Error("stripe_not_configured");
+  return new Stripe(stripeKey, { apiVersion: "2026-08-26.dahlia" });
+}
+
+/**
+ * Webhook writes run with the SERVICE ROLE key (server-only Route Handler —
+ * never imported by client components). Anon/RLS clients cannot perform
+ * these cross-user billing writes.
+ */
+function billingDb(): SupabaseClient {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || "";
+  if (!url || !serviceKey) throw new Error("supabase_not_configured");
+  return createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+}
 
 /**
  * Stripe webhook handler for subscription lifecycle events.
@@ -19,29 +33,30 @@ const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET || "";
  * - invoice.payment_failed → mark subscription as past_due
  */
 export async function POST(request: Request) {
+  // Fail closed: without a webhook secret we cannot verify Stripe signatures,
+  // so we refuse rather than trust unverified events.
+  if (!stripeKey || !endpointSecret) {
+    console.error("Stripe webhook not configured (missing secret)");
+    return NextResponse.json({ error: "webhook_not_configured" }, { status: 503 });
+  }
+  const stripe = getStripe();
+
   const body = await request.text();
   const signature = request.headers.get("stripe-signature") || "";
 
   let event: Stripe.Event;
-
-  // Verify webhook signature
-  if (endpointSecret) {
-    try {
-      event = stripe.webhooks.constructEvent(body, signature, endpointSecret);
-    } catch (err) {
-      console.error("Webhook signature verification failed:", err);
-      return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
-    }
-  } else {
-    // Development: parse without verification
-    event = JSON.parse(body);
+  try {
+    event = stripe.webhooks.constructEvent(body, signature, endpointSecret);
+  } catch (err) {
+    console.error("Webhook signature verification failed:", err);
+    return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
   try {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
-        await handleCheckoutComplete(session);
+        await handleCheckoutComplete(stripe, session);
         break;
       }
       case "customer.subscription.updated": {
@@ -81,27 +96,25 @@ export async function POST(request: Request) {
   }
 }
 
-async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
-  const supabase = createClient();
+async function handleCheckoutComplete(stripe: Stripe, session: Stripe.Checkout.Session) {
+  const supabase = billingDb();
   const customerId = session.customer as string;
   const subscriptionId = session.subscription as string;
 
-  // Get tier from metadata
-  const tier = (session.metadata?.tier || "basic") as "basic" | "pro" | "enterprise";
+  // Get tier from metadata, falling back to the subscription's price ID.
+  let tier = (session.metadata?.tier || "") as "basic" | "pro" | "enterprise" | "";
 
-  // Get the price ID to determine tier if not in metadata
-  if (!tier && session.line_items?.data[0]?.price?.id) {
-    const priceId = session.line_items.data[0].price.id;
+  // Fetch the subscription to get period end (and price fallback).
+  const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+  if (!tier) {
+    const priceId = subscription.items.data[0]?.price?.id || "";
     const tierMap: Record<string, "basic" | "pro" | "enterprise"> = {
       [process.env.NEXT_PUBLIC_STRIPE_PRICE_BASIC || ""]: "basic",
       [process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO || ""]: "pro",
       [process.env.NEXT_PUBLIC_STRIPE_PRICE_ENTERPRISE || ""]: "enterprise",
     };
-    // Will be set via subscription lookup in handleSubscriptionUpdated
+    tier = tierMap[priceId] || "basic";
   }
-
-  // Fetch the subscription to get period end
-  const subscription = await stripe.subscriptions.retrieve(subscriptionId);
   const periodEnd = getPeriodEnd(subscription);
 
   // Update user's profile
@@ -117,7 +130,7 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
 }
 
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
-  const supabase = createClient();
+  const supabase = billingDb();
   const customerId = subscription.customer as string;
   const periodEnd = getPeriodEnd(subscription);
 
@@ -165,7 +178,7 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
 }
 
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
-  const supabase = createClient();
+  const supabase = billingDb();
   const customerId = subscription.customer as string;
 
   await supabase.from("profiles").update({
@@ -201,7 +214,7 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
 }
 
 async function handleInvoicePaid(invoice: Stripe.Invoice) {
-  const supabase = createClient();
+  const supabase = billingDb();
   const customerId = invoice.customer as string;
 
   // Cache the invoice
@@ -223,7 +236,7 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
 }
 
 async function handlePaymentFailed(invoice: Stripe.Invoice) {
-  const supabase = createClient();
+  const supabase = billingDb();
   const customerId = invoice.customer as string;
 
   // Mark subscription as past_due
@@ -248,7 +261,7 @@ async function handlePaymentFailed(invoice: Stripe.Invoice) {
 
 async function recordWebhookEvent(event: Stripe.Event) {
   try {
-    const supabase = createClient();
+    const supabase = billingDb();
     await supabase.from("stripe_webhook_events").upsert({
       id: event.id,
       type: event.type,

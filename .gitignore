@@ -53,3 +53,9 @@ web/coverage/
 web/dev.log
 
 .vercel
+
+# Supabase CLI local state
+supabase/.temp/
+supabase/.branches/
+# Local build secrets (gradle user home)
+gradle.properties

@@ -48,10 +48,6 @@ enabled = true
 policy = "oneshot"
 inspector_port = 8083
 
-[functions]
-# Tell the local emulator to serve functions
-include_paths = ["supabase/functions"]
-
 [analytics]
 enabled = true
 port = 54327

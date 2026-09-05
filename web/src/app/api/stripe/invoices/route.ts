@@ -1,24 +1,33 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { getUser } from "@/lib/supabase-client";
+import { getSupabaseServer, getSessionUser } from "@/lib/supabase/server";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "sk_test_placeholder", {
-  apiVersion: "2026-08-26.dahlia",
-});
+const stripeKey = process.env.STRIPE_SECRET_KEY || "";
 
 export async function GET(request: Request) {
+  if (!stripeKey) {
+    return NextResponse.json({ error: "billing_not_configured" }, { status: 503 });
+  }
+  const stripe = new Stripe(stripeKey, { apiVersion: "2026-08-26.dahlia" });
   try {
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get("limit") || "10", 10);
 
-    const user = await getUser();
+    const user = await getSessionUser();
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get the Stripe customer ID for this user (stored as user_metadata in Supabase)
-    const customerId = (user.user_metadata as { stripe_customer_id?: string })?.stripe_customer_id;
+    // Stripe customer id lives on the server-side profile row (service data,
+    // not browser metadata).
+    const sb = await getSupabaseServer();
+    const { data: profile } = await sb
+      .from("profiles")
+      .select("stripe_customer_id")
+      .eq("id", user.id)
+      .single();
+    const customerId = (profile as { stripe_customer_id?: string } | null)?.stripe_customer_id;
     if (!customerId) {
       return NextResponse.json([]);
     }

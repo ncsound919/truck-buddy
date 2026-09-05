@@ -20,7 +20,7 @@ const DIM_AFTER_MS = 12_000;
  */
 export function NavigateScreen() {
   const flow = useFlow();
-  const { state, currentStop, currentStopLabel, arrive, totalStopCount } = flow;
+  const { state, currentStop, currentStopLabel, arrive, arriveViaGps, totalStopCount } = flow;
   const dark = useIsDark();
   const [dimmed, setDimmed] = useState(false);
   const dimTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -81,7 +81,7 @@ export function NavigateScreen() {
           if (!cancelled) setLiveMeters(m);
         },
         () => {
-          if (!cancelled) arrive();
+          if (!cancelled) arriveViaGps();
         },
       );
     })();

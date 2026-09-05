@@ -21,6 +21,14 @@
         menu.setAttribute('aria-hidden', 'true');
       });
     });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && menu.classList.contains('open')) {
+        menu.classList.remove('open');
+        toggle.setAttribute('aria-expanded', 'false');
+        menu.setAttribute('aria-hidden', 'true');
+        toggle.focus();
+      }
+    });
   }
 
   // --- Scroll reveal (respect reduced motion) ---

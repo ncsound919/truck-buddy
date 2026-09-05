@@ -60,7 +60,15 @@ export function parseBolFields(raw: string, consigneeFallback: string): ParsedFi
   const bol =
     raw.match(/(?:BOL|BL)[-:\s]*([A-Z0-9-]{4,})/i)?.[0]?.trim() ?? '';
   const weightMatch = raw.match(/([\d,]+)\s*(?:lbs|lb|pounds)/i);
-  const dateMatch = raw.match(/\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})\b/);
+  // Prefer ISO (YYYY-MM-DD) — the order Truck Buddy itself stamps. Falls back
+  // to a M/D/YYYY (or D/M/YYYY) guess, then today only when no date is present.
+  const isoDate = raw.match(/\b(20\d{2}|19\d{2})[-/](\d{1,2})[-/](\d{1,2})\b/);
+  const mdyDate = !isoDate && raw.match(/\b(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})\b/);
+  const parsedDate = isoDate
+    ? `${isoDate[1]}-${String(Number(isoDate[2])).padStart(2, '0')}-${String(Number(isoDate[3])).padStart(2, '0')}`
+    : mdyDate
+      ? `${mdyDate[3].length === 2 ? `20${mdyDate[3]}` : mdyDate[3]}-${String(Number(mdyDate[1])).padStart(2, '0')}-${String(Number(mdyDate[2])).padStart(2, '0')}`
+      : null;
   const shipperMatch = raw.match(/SHIPPER:?\s*([^\n\r]+)/i);
   const consigneeMatch = raw.match(/CONSIGNEE:?\s*([^\n\r]+)/i);
 
@@ -74,7 +82,7 @@ export function parseBolFields(raw: string, consigneeFallback: string): ParsedFi
     shipper: (shipperMatch?.[1] ?? '').trim() || '—',
     consignee: (consigneeMatch?.[1] ?? consigneeFallback).trim() || consigneeFallback,
     weight: weightMatch ? Number(weightMatch[1].replace(/,/g, '')) : 0,
-    date: dateMatch ? `${dateMatch[3].length === 2 ? `20${dateMatch[3]}` : dateMatch[3]}-${dateMatch[1]}-${dateMatch[2]}` : isoToday,
+    date: parsedDate ?? isoToday,
   };
 }
 

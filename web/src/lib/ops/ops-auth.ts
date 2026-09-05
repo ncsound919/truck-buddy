@@ -1,37 +1,12 @@
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
+import { getSupabaseServer } from '@/lib/supabase/server';
 
 /**
- * Server-side Supabase auth for the Ops console. Sessions live in HTTP-only
- * cookies managed by @supabase/ssr. Access to /ops is gated by (a) an
- * authenticated Supabase user and (b) that user's email being in the
- * OPS_ADMIN_EMAILS allowlist (comma-separated) OR matching a profile marked
- * admin. This module is server-only.
+ * Server-side Supabase auth for the Ops console. Access to /ops is gated by
+ * (a) an authenticated Supabase user and (b) that user's email being in the
+ * OPS_ADMIN_EMAILS allowlist (comma-separated). Reuses the shared server
+ * client (lib/supabase/server.ts).
  */
-
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const anonKey =
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || '';
-
-export async function getSupabaseServer() {
-  const cookieStore = await cookies();
-  return createServerClient(url, anonKey, {
-    cookies: {
-      getAll() {
-        return cookieStore.getAll();
-      },
-      setAll(cookiesToSet) {
-        try {
-          for (const { name, value, options } of cookiesToSet) {
-            cookieStore.set(name, value, options);
-          }
-        } catch {
-          // Called from a Server Component — safe to ignore when middleware refreshes sessions.
-        }
-      },
-    },
-  });
-}
+export { getSupabaseServer };
 
 /** The allowlisted admin emails (e.g. "you@example.com,ops@truckbuddy.online"). */
 export function adminEmails(): string[] {

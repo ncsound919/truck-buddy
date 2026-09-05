@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useReducer, useRef } from 'react';
+import { AppState } from 'react-native';
 
 import { setLivePrefs } from '@/services/prefs-bridge';
 import { DEMO_INSPECTION_ITEMS, DISPATCH_TEMPLATES, HOS_RULES, makeDemoRoute, normalizePrefs, uid } from '@/domain/data';
@@ -55,6 +56,8 @@ export interface FlowState {
   // Time, fatigue & detention (cab-side run tracking)
   /** ISO of arrival at the active stop (drives detention logging). */
   arrivalAt: string | null;
+  /** How the current arrival was detected (drives honest arrival copy). */
+  arrivalVia: 'gps' | 'manual' | null;
   dayClock: DayClock;
   detention: DetentionClaim[];
   /** True once a non-OK fault has been auto-reported to fleet this shift. */
@@ -80,6 +83,7 @@ function initialState(): FlowState {
     rememberedStops: [],
     aidLog: [],
     arrivalAt: null,
+  arrivalVia: null,
     dayClock: { shiftStartedAt: null, breakStartedAt: null, fatigueChecks: [] },
     detention: [],
     faultAlertSent: false,
@@ -93,7 +97,7 @@ export type FlowAction =
   | { type: 'INSPECTION_PASS' }
   | { type: 'INSPECTION_ISSUE'; note?: string }
   | { type: 'INSPECTION_BACK' }
-  | { type: 'SIMULATE_ARRIVE' }
+  | { type: 'SIMULATE_ARRIVE'; via?: 'gps' | 'manual' }
   | { type: 'GO_BACK_ON_ROAD' }
   | { type: 'OPEN_SCAN' }
   | { type: 'CANCEL_SCAN' }
@@ -113,6 +117,7 @@ export type FlowAction =
   | { type: 'REMEMBER_STOP'; stop: RememberedStop }
   | { type: 'FORGET_STOP'; id: string }
   | { type: 'LOG_DISPATCH'; dispatch: Dispatch }
+  | { type: 'MARK_DISPATCH'; id: string; dispatch: Dispatch }
   | { type: 'RUN_READY'; dayClock: DayClock; detention: DetentionClaim[] }
   | { type: 'START_BREAK' }
   | { type: 'END_BREAK' }
@@ -210,6 +215,7 @@ function reducer(state: FlowState, action: FlowAction): FlowState {
       if (stop && stop.status === 'pending') stop.status = 'arrived';
       draft.step = 'arrived';
       draft.arrivalAt = new Date().toISOString();
+      draft.arrivalVia = action.via ?? 'manual';
       return draft;
     }
 
@@ -218,6 +224,7 @@ function reducer(state: FlowState, action: FlowAction): FlowState {
       if (stop && stop.status === 'arrived') stop.status = 'pending';
       draft.step = 'navigating';
       draft.arrivalAt = null;
+      draft.arrivalVia = null;
       return draft;
     }
 
@@ -339,6 +346,10 @@ function reducer(state: FlowState, action: FlowAction): FlowState {
       draft.aidLog = [action.dispatch, ...draft.aidLog].slice(0, 60);
       return draft;
 
+    case 'MARK_DISPATCH':
+      draft.aidLog = draft.aidLog.map((d) => (d.id === action.id ? action.dispatch : d));
+      return draft;
+
     default:
       return state;
   }
@@ -359,6 +370,8 @@ export interface FlowController {
   inspectionIssue: (note?: string) => void;
   inspectionBack: () => void;
   arrive: () => void;
+  /** GPS geofence detected the arrival (same flow, honest arrival copy). */
+  arriveViaGps: () => void;
   backOnRoad: () => void;
   openScan: () => void;
   cancelScan: () => void;
@@ -476,6 +489,40 @@ export function FlowProvider({
     };
   }, []);
 
+  // Outbox: retry queued dispatches when the app comes foreground.
+  // Anything still failing stays queued with its error in the activity log.
+  const liveRef = useRef({ api, prefs: state.prefs, aidLog: state.aidLog });
+  useEffect(() => {
+    liveRef.current = { api, prefs: state.prefs, aidLog: state.aidLog };
+  });
+  useEffect(() => {
+    let cancelled = false;
+    const retryQueued = async () => {
+      const { api: liveApi, prefs, aidLog } = liveRef.current;
+      if (!prefs || prefs.dispatchTransport !== 'live') return;
+      const queued = aidLog.filter((d) => d.status === 'queued');
+      for (const msg of queued) {
+        if (cancelled) return;
+        try {
+          const sent = await liveApi.sendDispatch(msg);
+          if (sent.status !== 'queued') {
+            dispatch({ type: 'MARK_DISPATCH', id: msg.id, dispatch: sent });
+          }
+        } catch {
+          // stays queued; next foreground retry picks it up
+        }
+      }
+    };
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') void retryQueued();
+    });
+    void retryQueued();
+    return () => {
+      cancelled = true;
+      sub.remove();
+    };
+  }, []);
+
   const controller = useMemo<FlowController>(() => {
     const stops = state.route?.stops ?? [];
     const currentStop = stops[state.activeStopIndex] ?? null;
@@ -487,7 +534,12 @@ export function FlowProvider({
 
     // Driver Aid helpers (shared by the controller methods below).
     const driverId = state.session?.driver.id ?? '';
-    const contacts = state.contacts;
+    // Resolve driver-entered phone/carrier overrides over the seeded contacts.
+    const contacts = state.contacts.map((c) => ({
+      ...c,
+      phone: state.prefs?.contactPhones[c.id] ?? c.phone,
+      smsCarrier: state.prefs?.smsCarriers[c.id] ?? c.smsCarrier,
+    }));
     const arrivalTarget = (contactId?: string): Contact | null => {
       if (contactId) return contacts.find((c) => c.id === contactId) ?? null;
       if (!currentStop) return null;
@@ -515,6 +567,7 @@ export function FlowProvider({
         at: new Date().toISOString(),
         category,
       };
+      if (kind === 'sms' && to.smsCarrier) msg.carrier = to.smsCarrier;
       const sent = await api.sendDispatch(msg).catch(() => msg);
       dispatch({ type: 'LOG_DISPATCH', dispatch: sent });
       return sent;
@@ -588,6 +641,43 @@ export function FlowProvider({
       );
     };
 
+    // Shared arrival side-effects for manual + GPS arrivals.
+    const arriveAids = () => {
+      haptic('arrive');
+      announce('You have arrived.');
+      // Auto text when the driver has it enabled (memory: pref).
+      if (state.prefs?.autoNotifyOnArrival && currentStop) {
+        const target = arrivalTarget();
+        if (target) {
+          void logDispatch(
+            'sms',
+            target,
+            `Arrived at ${currentStop.name}`,
+            DISPATCH_TEMPLATES.arrivedSms(currentStop.name),
+          );
+        }
+      }
+      // GATED external notify: text the consignee (third party) on arrival.
+      if (state.prefs?.notifyConsigneeOnArrival && currentStop) {
+        const first = currentStop.name.split(' ')[0].toLowerCase();
+        const consignee = contacts.find(
+          (c) => c.role !== 'dispatch' && c.label.toLowerCase().split(' ')[0] === first,
+        );
+        if (consignee?.phone) {
+          void logDispatch(
+            'sms',
+            consignee,
+            `Arrived at ${currentStop.name}`,
+            DISPATCH_TEMPLATES.consigneeArrivalSms(
+              currentStop.name,
+              state.session?.vehicle?.plate ?? 'unit',
+              state.session?.driver.name ?? 'Driver',
+            ),
+          );
+        }
+      }
+    };
+
     return {
       state,
       driverName: state.session?.driver.name ?? 'Driver',
@@ -619,40 +709,12 @@ export function FlowProvider({
       },
       inspectionBack: () => dispatch({ type: 'INSPECTION_BACK' }),
       arrive: () => {
-        dispatch({ type: 'SIMULATE_ARRIVE' });
-        haptic('arrive');
-        announce('You have arrived.');
-        // Auto text when the driver has it enabled (memory: pref).
-        if (state.prefs?.autoNotifyOnArrival && currentStop) {
-          const target = arrivalTarget();
-          if (target) {
-            void logDispatch(
-              'sms',
-              target,
-              `Arrived at ${currentStop.name}`,
-              DISPATCH_TEMPLATES.arrivedSms(currentStop.name),
-            );
-          }
-        }
-        // GATED external notify: text the consignee (third party) on arrival.
-        if (state.prefs?.notifyConsigneeOnArrival && currentStop) {
-          const first = currentStop.name.split(' ')[0].toLowerCase();
-          const consignee = contacts.find(
-            (c) => c.role !== 'dispatch' && c.label.toLowerCase().split(' ')[0] === first,
-          );
-          if (consignee?.phone) {
-            void logDispatch(
-              'sms',
-              consignee,
-              `Arrived at ${currentStop.name}`,
-              DISPATCH_TEMPLATES.consigneeArrivalSms(
-                currentStop.name,
-                state.session?.vehicle?.plate ?? 'unit',
-                state.session?.driver.name ?? 'Driver',
-              ),
-            );
-          }
-        }
+        dispatch({ type: 'SIMULATE_ARRIVE', via: 'manual' });
+        arriveAids();
+      },
+      arriveViaGps: () => {
+        dispatch({ type: 'SIMULATE_ARRIVE', via: 'gps' });
+        arriveAids();
       },
       backOnRoad: () => {
         dispatch({ type: 'GO_BACK_ON_ROAD' });
@@ -739,9 +801,13 @@ export function FlowProvider({
           return;
         }
         const subject = `Arrived at ${currentStop.name}`;
-        await logDispatch('sms', to, subject, DISPATCH_TEMPLATES.arrivedSms(currentStop.name));
+        const sent = await logDispatch('sms', to, subject, DISPATCH_TEMPLATES.arrivedSms(currentStop.name));
         haptic('taskComplete');
-        announce(`Arrival text sent to ${to.label}.`);
+        announce(
+          sent.status === 'sent'
+            ? `Arrival text sent to ${to.label}.`
+            : `Arrival text queued for ${to.label}. It will send when connected.`,
+        );
       },
       sendDocEmail: async (doc, contactId) => {
         const targetId = contactId ?? state.prefs?.docForwardToContactId ?? null;
@@ -752,7 +818,7 @@ export function FlowProvider({
           return;
         }
         const p = doc.parsedFields;
-        await logDispatch(
+        const sent = await logDispatch(
           'email',
           to,
           DISPATCH_TEMPLATES.docEmailSubject(p.bol_number, doc.type),
@@ -764,7 +830,11 @@ export function FlowProvider({
           ),
         );
         haptic('taskComplete');
-        announce(`Paperwork ${p.bol_number} emailed to ${to.label}.`);
+        announce(
+          sent.status === 'sent'
+            ? `Paperwork ${p.bol_number} emailed to ${to.label}.`
+            : `Paperwork ${p.bol_number} queued for ${to.label}. It will send when connected.`,
+        );
       },
       readBackDoc: (doc) => {
         const p = doc.parsedFields;
