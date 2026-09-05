@@ -21,7 +21,7 @@ const FEATURES = [
   { icon: ClipboardIcon, title: 'Guided inspections', body: 'Pre- and post-trip checklists with one-thumb Pass / flag. Issues become voice notes, not clipboard scribbles.' },
   { icon: RouteIcon, title: 'Routes & dispatch', body: 'Every load sequenced with ETA and mileage. Finish one and the next is queued before you pull away.' },
   { icon: ScanIcon, title: 'Scan any document', body: 'Point at the BOL, invoice, or delivery receipt. OCR reads it, extracts the fields, and files it for you.' },
-  { icon: HealthIcon, title: 'Live truck health', body: 'OBD diagnostics — coolant, battery, fuel, fault codes — read aloud before you ever leave the yard.' },
+  { icon: HealthIcon, title: 'Truck health, read out', body: 'Sample diagnostics today — coolant, battery, fuel, and fault codes. Connect your ELD or telematics feed to go live.' },
   { icon: TruckIcon, title: 'Fleet & owner-ops', body: 'Owner-operator tools with the option to scale into dispatch, driver management, and fleet dashboards.' },
   { icon: DocIcon, title: 'Everything off the road', body: 'Loads, documents, payments, and messages in one portal — so the office lives in the truck with you.' },
 ];
@@ -34,9 +34,9 @@ const STEPS = [
 ];
 
 const TIERS = [
-  { name: 'Basic', price: '$10', blurb: 'Everything a solo driver needs to run clean paperwork.', cta: 'Start Basic', highlight: false, features: ['Guided inspections', 'Route stops & navigation', 'Document capture', 'Truck health readouts', 'Email support'] },
-  { name: 'Pro', price: '$30', blurb: 'Add extra logistics assistance — routing, dispatch, and unlimited OCR.', cta: 'Go Pro', highlight: true, features: ['Everything in Basic', 'Extra logistics assistance', 'Unlimited OCR documents', 'Automatic geofence arrival', 'Priority support'] },
-  { name: 'Fleet / Enterprise', price: '$199', blurb: 'A dedicated desk for fleets and dispatchers running many trucks.', cta: 'Talk to us', highlight: false, features: ['Everything in Pro', 'Fleet dashboards & reports', 'Team & driver management', 'Dedicated logistics coordinator', 'Onboarding & support'] },
+  { name: 'Basic', price: '$19', blurb: 'Everything a solo driver needs to run clean paperwork.', cta: 'Start Basic', highlight: false, features: ['Guided inspections', 'Route stops & navigation', 'Document capture', 'Truck health readouts', 'Email support'] },
+  { name: 'Pro', price: '$49', blurb: 'Add extra logistics assistance — routing, dispatch, and unlimited OCR.', cta: 'Go Pro', highlight: true, features: ['Everything in Basic', 'Extra logistics assistance', 'Unlimited OCR documents', 'Automatic geofence arrival', 'Priority support'] },
+  { name: 'Fleet / Enterprise', price: '$129', blurb: 'A dedicated desk for fleets and dispatchers running many trucks.', cta: 'Talk to us', highlight: false, features: ['Everything in Pro', 'Fleet dashboards & reports', 'Team & driver management', 'Dedicated logistics coordinator', 'Onboarding & support'] },
 ];
 
 export default function HomePage() {
@@ -148,10 +148,10 @@ function PhoneMock() {
 
 function StatsBar() {
   const stats = [
-    ['3×', 'fewer touch inputs per stop'],
-    ['0', 'missed inspections'],
-    ['30s', 'to capture a bill of lading'],
-    ['Live', 'truck health on every screen'],
+    ['1-tap', 'document capture with on-device OCR'],
+    ['Email + text', 'that actually send, with offline retry'],
+    ['Hands-free', 'spoken navigation and status readouts'],
+    ['3 platforms', 'Android, iOS and web — one account'],
   ];
   return (
     <section className="relative overflow-hidden border-y border-white/10 bg-[radial-gradient(70rem_30rem_at_50%_-20%,#102c54,transparent),linear-gradient(180deg,#0b1626,#0a1320)]">
@@ -288,7 +288,7 @@ function PricingSection() {
                 ))}
               </ul>
               <div className="mt-auto">
-                <ButtonLink href="/portal" variant={t.highlight ? 'primary' : 'secondary'} className="w-full">
+                <ButtonLink href="/portal/pricing" variant={t.highlight ? 'primary' : 'secondary'} className="w-full">
                   {t.cta}
                 </ButtonLink>
               </div>
@@ -309,19 +309,19 @@ function CtaSection() {
           Ready to put the paper away?
         </h2>
         <p className="pretty mx-auto mt-5 max-w-md text-lg leading-relaxed text-[#dbe6ff]">
-          Open the portal and run your first load — paperwork handled end to end.
+          Pick a plan and run your first hands-free shift this week.
         </p>
         <div className="mt-9 flex flex-wrap justify-center gap-3">
-          <ButtonLink href="/portal" variant="light" size="lg">Open the portal</ButtonLink>
+          <ButtonLink href="/portal/pricing" variant="light" size="lg">See plans &amp; pricing</ButtonLink>
           <Link
-            href="#pricing"
+            href="https://truckbuddy.online/download"
             className="inline-flex h-[52px] items-center justify-center rounded-xl border border-white/40 bg-white/5 px-7 text-base font-bold text-white transition hover:border-white hover:bg-white/10"
           >
-            See pricing
+            Download Android
           </Link>
         </div>
         <p className="mt-7 text-sm font-medium text-[#c9dcf7]">
-          No credit card · Available on web, Android &amp; iOS
+          Cancel anytime · Android, iOS &amp; web
         </p>
       </Reveal>
     </section>

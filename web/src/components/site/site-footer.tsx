@@ -14,10 +14,9 @@ export function SiteFooter() {
           <div className="grid grid-cols-2 gap-x-16 gap-y-2 text-sm font-semibold text-[#9fb4d8] sm:grid-cols-3">
             <div className="flex flex-col gap-2.5">
               <span className="font-bold text-white">Product</span>
-              <Link href="/portal" className="hover:text-white">Driver portal</Link>
-              <Link href="/assistant" className="hover:text-white">Breakdown help</Link>
+              <Link href="/portal/pricing" className="hover:text-white">Pricing</Link>
+              <Link href="/download" className="hover:text-white">Download Android</Link>
               <Link href="/#how-it-works" className="hover:text-white">How it works</Link>
-              <Link href="/#pricing" className="hover:text-white">Pricing</Link>
             </div>
             <div className="flex flex-col gap-2.5">
               <span className="font-bold text-white">Company</span>
@@ -27,13 +26,14 @@ export function SiteFooter() {
             <div className="flex flex-col gap-2.5">
               <span className="font-bold text-white">App</span>
               <Link href="/portal" className="hover:text-white">Sign in</Link>
-              <span className="text-faint">Android · iOS · Web</span>
+              <Link href="/privacy" className="hover:text-white">Privacy</Link>
+              <Link href="/terms" className="hover:text-white">Terms</Link>
             </div>
           </div>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-6 text-xs">
           <span>© {new Date().getFullYear()} Truck Buddy. All rights reserved.</span>
-          <span>Demo concept · Unreleased</span>
+          <span>In beta — features evolve weekly.</span>
         </div>
       </div>
     </footer>
