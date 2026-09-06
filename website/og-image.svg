@@ -1,1 +1,36 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630"><rect width="1200" height="630" fill="#0b1626"/><rect x="80" y="80" width="104" height="104" rx="24" fill="#0f6bff"/><text x="132" y="152" font-family="Inter,system-ui,sans-serif" font-size="52" font-weight="900" fill="#fff" text-anchor="middle">TB</text><text x="80" y="300" font-family="Inter,system-ui,sans-serif" font-size="96" font-weight="900" fill="#fff">Less paperwork.</text><text x="80" y="410" font-family="Inter,system-ui,sans-serif" font-size="96" font-weight="900" fill="#0f6bff">More road.</text><text x="80" y="500" font-family="Inter,system-ui,sans-serif" font-size="36" fill="#9fb4d8">The hands-free companion for truck drivers.</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0b1626"/>
+      <stop offset="1" stop-color="#13223d"/>
+    </linearGradient>
+    <linearGradient id="o" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F9A653"/>
+      <stop offset="1" stop-color="#D97225"/>
+    </linearGradient>
+    <linearGradient id="b" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3B8AE8"/>
+      <stop offset="1" stop-color="#1E5BB8"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <!-- left copy -->
+  <text x="80" y="220" font-family="Inter,system-ui,sans-serif" font-size="88" font-weight="900" fill="#fff">Less paperwork.</text>
+  <text x="80" y="320" font-family="Inter,system-ui,sans-serif" font-size="88" font-weight="900" fill="url(#o)">More road.</text>
+  <text x="80" y="400" font-family="Inter,system-ui,sans-serif" font-size="32" fill="#9fb4d8">The hands-free companion for truck drivers.</text>
+  <text x="80" y="445" font-family="Inter,system-ui,sans-serif" font-size="32" font-weight="700" fill="#F9A653">Your Reliable Logistics Friend.</text>
+  <!-- right mascot -->
+  <g transform="translate(820,140)">
+    <circle cx="200" cy="180" r="170" fill="#FFF6EC"/>
+    <ellipse cx="200" cy="320" rx="120" ry="10" fill="#000" opacity="0.08"/>
+    <rect x="60" y="180" width="160" height="100" rx="8" fill="url(#o)" stroke="#A65418" stroke-width="4"/>
+    <path d="M220 150 L290 150 Q310 150 318 174 L328 220 Q328 260 314 260 L220 260 Z" fill="url(#b)" stroke="#143F87" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M236 168 L286 168 Q298 168 304 184 L310 210 L236 210 Z" fill="#BDE0FF" stroke="#143F87" stroke-width="3"/>
+    <circle cx="252" cy="190" r="6" fill="#143F87"/>
+    <circle cx="276" cy="190" r="6" fill="#143F87"/>
+    <circle cx="120" cy="296" r="28" fill="#143F87"/>
+    <circle cx="120" cy="296" r="12" fill="url(#o)"/>
+    <circle cx="280" cy="296" r="28" fill="#143F87"/>
+    <circle cx="280" cy="296" r="12" fill="url(#o)"/>
+  </g>
+</svg>
