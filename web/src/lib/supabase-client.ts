@@ -146,6 +146,22 @@ export async function resetPassword(email: string) {
 }
 
 /**
+ * Resend the email-confirmation message (used when the user signs up but the
+ * confirmation email never arrived, or landed in spam).
+ */
+export async function resendConfirmation(email: string) {
+  const supabase = createClient();
+  const { data, error } = await supabase.auth.resend({
+    type: "signup",
+    email,
+    options: {
+      emailRedirectTo: `${typeof window !== "undefined" ? window.location.origin : ""}/portal`,
+    },
+  });
+  return { data, error };
+}
+
+/**
  * Update user password (after reset).
  */
 export async function updatePassword(newPassword: string) {

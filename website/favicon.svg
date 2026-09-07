@@ -1,1 +1,23 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#0f6bff"/><text x="32" y="42" font-family="Inter,system-ui,sans-serif" font-size="28" font-weight="900" fill="#fff" text-anchor="middle">TB</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="b" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3B8AE8"/>
+      <stop offset="1" stop-color="#1E5BB8"/>
+    </linearGradient>
+    <linearGradient id="o" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F9A653"/>
+      <stop offset="1" stop-color="#D97225"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#b)"/>
+  <circle cx="32" cy="34" r="22" fill="#FFF6EC"/>
+  <rect x="10" y="30" width="20" height="13" rx="2" fill="url(#o)" stroke="#A65418" stroke-width="1"/>
+  <path d="M30 25 L41 25 Q45 25 46 30 L48 38 Q48 43 45 43 L30 43 Z" fill="#4FA0F5" stroke="#143F87" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M33 28 L41 28 Q43 28 44 31 L45 35 L33 35 Z" fill="#BDE0FF" stroke="#143F87" stroke-width="0.8"/>
+  <circle cx="36" cy="32" r="1" fill="#143F87"/>
+  <circle cx="40" cy="32" r="1" fill="#143F87"/>
+  <circle cx="18" cy="46" r="5" fill="#143F87"/>
+  <circle cx="18" cy="46" r="2" fill="url(#o)"/>
+  <circle cx="42" cy="46" r="5" fill="#143F87"/>
+  <circle cx="42" cy="46" r="2" fill="url(#o)"/>
+</svg>
