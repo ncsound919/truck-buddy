@@ -28,6 +28,26 @@ export interface Vehicle {
 
 export type StopStatus = 'pending' | 'arrived' | 'completed';
 
+/** What kind of delivery point a destination is — drives the icon/label. */
+export type DestinationKind = 'house' | 'building' | 'dock' | 'unit';
+
+/**
+ * A single delivery point inside a stop. One stop can have many destinations
+ * (a housing street, a campus of buildings, multiple dock doors). Summing
+ * `handlingMinutes` gives the on-site estimate the driver needs to gauge
+ * how long the stop will really take.
+ */
+export interface DeliveryDestination {
+  id: string;
+  kind: DestinationKind;
+  /** Short label the driver reads on screen: "Dock 3", "Building B", "12 Elm St". */
+  label: string;
+  /** Optional extra the driver needs on arrival (gate code, floor, unit). */
+  detail?: string;
+  /** Expected minutes spent at this single delivery point. */
+  handlingMinutes: number;
+}
+
 export interface Stop {
   id: string;
   routeId: string;
@@ -39,10 +59,12 @@ export interface Stop {
   /** Spec: geofence radius in meters used to trigger `arrived`. */
   geofenceMeters: number;
   status: StopStatus;
-  /** Canned ETA in minutes for this demo slice (real routing engine later). */
+  /** Canned drive ETA in minutes for this demo slice (real routing engine later). */
   etaMinutes: number;
   /** Distance driven from the previous stop in this demo slice. */
   legMiles: number;
+  /** The delivery points at this stop — source of the on-site time estimate. */
+  destinations: DeliveryDestination[];
   completedAt?: string;
 }
 

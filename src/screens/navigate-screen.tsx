@@ -5,6 +5,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BigButton, Kicker, Pill } from '@/components/ui';
 import { Brand, useIsDark } from '@/constants/brand';
 import { Spacing } from '@/constants/theme';
+import { stopOnSiteMinutes } from '@/domain/data';
+import type { DestinationKind } from '@/domain/types';
 import { useFlow } from '@/store/flow';
 import { useNow } from '@/hooks/use-now';
 import { announce } from '@/services/voice';
@@ -49,7 +51,15 @@ export function NavigateScreen() {
     if (state.step !== 'navigating' || !currentStop) return;
     if (announcedRef.current !== stopId) {
       announcedRef.current = stopId;
-      announce(`Next stop: ${currentStop.name}. ETA ${currentStop.etaMinutes} minutes.`);
+      const onSite = stopOnSiteMinutes(currentStop);
+      const destCount = currentStop.destinations.length;
+      announce(
+        `Next stop: ${currentStop.name}. ` +
+          (destCount > 0
+            ? `${destCount} delivery point${destCount === 1 ? '' : 's'}, about ${onSite} minutes on site. `
+            : '') +
+          `Drive ETA ${currentStop.etaMinutes} minutes.`,
+      );
     }
     dimTimerRef.current = setTimeout(() => {
       setDimmed(false);
@@ -107,6 +117,16 @@ export function NavigateScreen() {
   if (!currentStop) return null;
 
   const progressText = `${currentStop.sequence} of ${totalStopCount}`;
+  const onSiteMin = stopOnSiteMinutes(currentStop);
+  const totalMin = currentStop.etaMinutes + onSiteMin;
+  const destCount = currentStop.destinations.length;
+
+  const kindIcon: Record<DestinationKind, string> = {
+    house: '🏠',
+    building: '🏢',
+    dock: '🚪',
+    unit: '📍',
+  };
 
   const gpsLine = (() => {
     if (!gpsEnabled) return null;
@@ -135,9 +155,36 @@ export function NavigateScreen() {
               {currentStop.address}
             </Text>
 
+            {destCount > 0 ? (
+              <View style={[styles.destCard, dark ? styles.destCardDark : styles.destCardLight]}>
+                <Text style={styles.destKicker}>
+                  DELIVERY POINTS · {destCount} · ~{onSiteMin} MIN ON SITE
+                </Text>
+                {currentStop.destinations.map((d) => (
+                  <View key={d.id} style={styles.destRow}>
+                    <Text style={styles.destIcon}>{kindIcon[d.kind]}</Text>
+                    <View style={styles.destInfo}>
+                      <Text style={[styles.destLabel, { color: dark ? '#FFFFFF' : '#101828' }]}>
+                        {d.label}
+                      </Text>
+                      {d.detail ? (
+                        <Text style={styles.destDetail}>{d.detail}</Text>
+                      ) : null}
+                    </View>
+                    <Text style={styles.destTime}>{d.handlingMinutes}m</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+
             <View style={styles.etaCard}>
-              <Text style={styles.etaValue}>{currentStop.etaMinutes}</Text>
-              <Text style={styles.etaUnit}>min ETA</Text>
+              <Text style={styles.etaValue}>{totalMin}</Text>
+              <View>
+                <Text style={styles.etaUnit}>min total</Text>
+                <Text style={styles.etaSub}>
+                  {currentStop.etaMinutes}m drive · {onSiteMin}m on site
+                </Text>
+              </View>
             </View>
           </View>
 
@@ -241,6 +288,16 @@ const styles = StyleSheet.create({
   eyebrow: { fontSize: 13, fontWeight: '800', letterSpacing: 1.2, color: Brand.accent, textTransform: 'uppercase' },
   stopName: { fontSize: 44, lineHeight: 50, fontWeight: '800', letterSpacing: -0.5 },
   address: { fontSize: 18, fontWeight: '600', lineHeight: 24 },
+  destCard: { borderRadius: 18, padding: Spacing.three, gap: Spacing.two, marginTop: Spacing.two },
+  destCardLight: { backgroundColor: '#F0F3F8' },
+  destCardDark: { backgroundColor: '#16233A' },
+  destKicker: { fontSize: 10, fontWeight: '800', letterSpacing: 0.8, color: Brand.accent },
+  destRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  destIcon: { fontSize: 16 },
+  destInfo: { flex: 1, gap: 1 },
+  destLabel: { fontSize: 15, fontWeight: '800', lineHeight: 20 },
+  destDetail: { fontSize: 12, fontWeight: '600', color: '#8FA1BB', lineHeight: 16 },
+  destTime: { fontSize: 13, fontWeight: '800', color: '#5B6575' },
   etaCard: {
     marginTop: Spacing.four,
     flexDirection: 'row',
@@ -249,6 +306,7 @@ const styles = StyleSheet.create({
   },
   etaValue: { fontSize: 72, fontWeight: '800', lineHeight: 76, color: Brand.accent },
   etaUnit: { fontSize: 20, fontWeight: '800', color: '#5B6575' },
+  etaSub: { fontSize: 13, fontWeight: '700', color: '#8A94A6', marginTop: 2 },
   statusRow: { flexDirection: 'row', gap: Spacing.two, flexWrap: 'wrap' },
   actions: { gap: Spacing.three },
   runBar: { flexDirection: 'row', borderRadius: 18, padding: Spacing.three, gap: Spacing.two },

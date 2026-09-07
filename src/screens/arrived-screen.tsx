@@ -5,11 +5,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BigButton, Pill } from '@/components/ui';
 import { Brand, useIsDark } from '@/constants/brand';
 import { Spacing } from '@/constants/theme';
-import type { Contact } from '@/domain/types';
+import { DISPATCH_TEMPLATES, stopOnSiteMinutes } from '@/domain/data';
+import type { Contact, DestinationKind } from '@/domain/types';
 import { useFlow } from '@/store/flow';
 import { haptic } from '@/services/haptics';
 import { openCall, openEmail, openSms } from '@/services/outreach';
-import { DISPATCH_TEMPLATES } from '@/domain/data';
 import { useNow } from '@/hooks/use-now';
 
 /**
@@ -103,6 +103,27 @@ export function ArrivedScreen() {
           <Text style={[styles.stopName, { color: dark ? '#FFFFFF' : '#101828' }]}>
             {currentStop.name}
           </Text>
+          {currentStop.destinations.length > 0 ? (
+            <View style={[styles.destCard, dark ? styles.destCardDark : styles.destCardLight]}>
+              <Text style={styles.destKicker}>
+                DELIVER TO · {currentStop.destinations.length} POINT
+                {currentStop.destinations.length === 1 ? '' : 'S'} · ~
+                {stopOnSiteMinutes(currentStop)} MIN
+              </Text>
+              {currentStop.destinations.map((d) => (
+                <View key={d.id} style={styles.destRow}>
+                  <Text style={styles.destIcon}>{({ house: '🏠', building: '🏢', dock: '🚪', unit: '📍' } as Record<DestinationKind, string>)[d.kind]}</Text>
+                  <View style={styles.destInfo}>
+                    <Text style={[styles.destLabel, { color: dark ? '#FFFFFF' : '#101828' }]}>
+                      {d.label}
+                    </Text>
+                    {d.detail ? <Text style={styles.destDetail}>{d.detail}</Text> : null}
+                  </View>
+                  <Text style={styles.destTime}>{d.handlingMinutes}m</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
         </View>
 
         {lastDoc && stopHasDocument ? (
@@ -184,6 +205,16 @@ const styles = StyleSheet.create({
   arrived: { fontSize: 46, lineHeight: 52, fontWeight: '800', letterSpacing: -0.6 },
   eyebrow: { fontSize: 13, fontWeight: '800', letterSpacing: 1.2, textTransform: 'uppercase' },
   stopName: { fontSize: 24, fontWeight: '800', lineHeight: 30 },
+  destCard: { borderRadius: 18, padding: Spacing.three, gap: Spacing.two },
+  destCardLight: { backgroundColor: '#F0F3F8' },
+  destCardDark: { backgroundColor: '#16233A' },
+  destKicker: { fontSize: 10, fontWeight: '800', letterSpacing: 0.8, color: Brand.accent },
+  destRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  destIcon: { fontSize: 16 },
+  destInfo: { flex: 1, gap: 1 },
+  destLabel: { fontSize: 15, fontWeight: '800', lineHeight: 20 },
+  destDetail: { fontSize: 12, fontWeight: '600', color: '#8FA1BB', lineHeight: 16 },
+  destTime: { fontSize: 13, fontWeight: '800', color: '#5B6575' },
   verifiedRow: { alignItems: 'flex-start', marginVertical: Spacing.two },
   waitCard: {
     backgroundColor: '#FFF4E0', borderRadius: 18, padding: Spacing.three, gap: 4,

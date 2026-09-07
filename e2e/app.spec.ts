@@ -113,5 +113,5 @@ test('end a full shift: all stops -> post-trip -> summary -> logged', async ({ p
   await expect(page.getByText('3/3')).toBeVisible();
   await expect(page.getByText('DETENTION')).toBeVisible();
   await page.getByText('End Shift', { exact: true }).click();
-  await expect(page.getByText('Shift Logged')).toBeVisible();
+  await expect(page.getByText('Shift Logged', { exact: true })).toBeVisible();
 });

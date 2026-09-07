@@ -7,6 +7,7 @@ import type {
   ParsedFields,
   RememberedStop,
   Route,
+  Stop,
   TodaySession,
   TruckDocument,
   Vehicle,
@@ -97,6 +98,11 @@ export function makeDemoRoute(): Route {
         status: 'pending',
         etaMinutes: 32,
         legMiles: 112,
+        destinations: [
+          { id: 'acme_b', kind: 'building', label: 'Building B', detail: 'Receiving office, door 14', handlingMinutes: 18 },
+          { id: 'acme_dock3', kind: 'dock', label: 'Dock 3', detail: 'Tall gate — 53ft ok', handlingMinutes: 14 },
+          { id: 'acme_dock4', kind: 'dock', label: 'Dock 4', detail: 'Inside refrigerated', handlingMinutes: 10 },
+        ],
       },
       {
         id: 'stop_haley',
@@ -110,6 +116,10 @@ export function makeDemoRoute(): Route {
         status: 'pending',
         etaMinutes: 18,
         legMiles: 60,
+        destinations: [
+          { id: 'haley_gate', kind: 'unit', label: 'Gate house', detail: 'Check-in, yard office', handlingMinutes: 6 },
+          { id: 'haley_dock2', kind: 'dock', label: 'Dock 2', detail: 'East wall', handlingMinutes: 12 },
+        ],
       },
       {
         id: 'stop_carolina',
@@ -123,9 +133,19 @@ export function makeDemoRoute(): Route {
         status: 'pending',
         etaMinutes: 24,
         legMiles: 146,
+        destinations: [
+          { id: 'car_house12', kind: 'house', label: 'House 12', detail: 'Rear lane, ring bell', handlingMinutes: 8 },
+          { id: 'car_house14', kind: 'house', label: 'House 14', detail: 'Side entrance', handlingMinutes: 8 },
+          { id: 'car_bay', kind: 'building', label: 'Bay 1', detail: 'Cold ramp — gloves', handlingMinutes: 16 },
+        ],
       },
     ],
   };
+}
+
+/** On-site delivery time for a stop: sum of every destination's handling time. */
+export function stopOnSiteMinutes(stop: Pick<Stop, 'destinations'>): number {
+  return stop.destinations.reduce((total, d) => total + d.handlingMinutes, 0);
 }
 
 /** Builds a complete, consistent demo session. */

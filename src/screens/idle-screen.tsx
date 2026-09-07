@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BigButton, Pill } from '@/components/ui';
 import { Brand, useIsDark } from '@/constants/brand';
 import { Spacing } from '@/constants/theme';
+import { stopOnSiteMinutes } from '@/domain/data';
 import { profileLabel } from '@/domain/profile';
 import { SMS_CARRIERS } from '@/domain/types';
 import type { SmsCarrierId } from '@/domain/types';
@@ -23,6 +24,8 @@ export function IdleScreen() {
   const stops = state.route?.stops ?? [];
   const routeSummary = stops.map((s) => s.name.split(' ')[0]).join(' → ');
   const totalMiles = stops.reduce((a, s) => a + s.legMiles, 0);
+  const deliveryPoints = stops.reduce((a, s) => a + s.destinations.length, 0);
+  const onSiteTotal = stops.reduce((a, s) => a + stopOnSiteMinutes(s), 0);
   const prefs = state.prefs;
   const forwardTarget = prefs?.docForwardToContactId
     ? state.contacts.find((c) => c.id === prefs.docForwardToContactId) ?? null
@@ -74,7 +77,8 @@ export function IdleScreen() {
               {routeSummary}
             </Text>
             <Text style={styles.vehicleMeta}>
-              {stops.length} stops · {totalMiles} miles · {stops[0]?.etaMinutes ?? 0} min to first stop
+              {stops.length} stops · {deliveryPoints} delivery point{deliveryPoints === 1 ? '' : 's'} ·{' '}
+              {onSiteTotal} min on site · {totalMiles} miles
             </Text>
           </View>
         ) : null}
