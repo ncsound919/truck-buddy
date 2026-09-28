@@ -132,7 +132,11 @@ export function Pill({
     </View>
   );
   return onPress ? (
-    <Pressable onPress={onPress} style={({ pressed }) => pressed && pillStyles.pressed}>
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={({ pressed }) => pressed && pillStyles.pressed}>
       {content}
     </Pressable>
   ) : (

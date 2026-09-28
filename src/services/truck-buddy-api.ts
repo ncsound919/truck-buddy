@@ -210,7 +210,8 @@ export class MockTruckBuddyApi implements TruckBuddyApi {
     if (opts.stopId === 'stop_acme') {
       fields.bol_number = 'BOL-882114';
     }
-    return makeMockDocument(opts.stopId, opts.type, fields);
+    const session = await this.sessionProvider().catch(() => null);
+    return makeMockDocument(opts.stopId, opts.type, fields, session?.driver.id);
   }
 
   async getContacts(): Promise<Contact[]> {

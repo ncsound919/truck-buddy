@@ -52,7 +52,7 @@ export function InspectionScreen() {
             onPress={() => reportIssue()}
           />
           {index > 0 ? (
-            <Text style={styles.backHint} onPress={inspectionBack}>
+            <Text style={styles.backHint} accessibilityRole="button" onPress={inspectionBack}>
               ← previous item
             </Text>
           ) : (

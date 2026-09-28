@@ -70,7 +70,14 @@ export function ScanScreen() {
       // The driver may have tapped Cancel (unmounting this screen) mid-capture.
       if (cancelledRef.current) return;
       if (lines && lines.length) {
-        const doc = buildOcrDocument(type, currentStop.id, currentStop.name, uri, lines);
+        const doc = buildOcrDocument(
+          type,
+          currentStop.id,
+          currentStop.name,
+          uri,
+          lines,
+          state.session?.driver.id,
+        );
         commitCapture(doc);
       } else {
         announce('No text found. Bring the document closer and try again.');

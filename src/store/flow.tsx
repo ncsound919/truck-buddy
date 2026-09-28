@@ -516,6 +516,8 @@ export interface FlowController {
   completeStop: () => void;
   endShift: () => void;
   readTruckHealth: () => string | null;
+  /** Re-evaluate the auto fleet fault alert (called when OBD telemetry arrives). */
+  checkFaultAlert: () => void;
 
   // Time, fatigue, detention & triage (cab-side run tracking)
   onBreak: boolean;
@@ -654,9 +656,21 @@ export function FlowProvider({
       ]);
       if (cancelled) return;
       runHydratedRef.current = true;
+      const clock = normalizeClock(dayClock);
+      // A fresh launch means the app was closed — fold the closed span into the
+      // drive total and stop live accrual, so a session left open (or the app
+      // reopened a day later) can't fabricate an 11-hour drive violation.
+      if (clock.driveStartedAt) {
+        const elapsed = Math.max(
+          0,
+          Math.floor((Date.now() - new Date(clock.driveStartedAt).getTime()) / 60000),
+        );
+        clock.driveMinutes += elapsed;
+        clock.driveStartedAt = null;
+      }
       dispatch({
         type: 'RUN_READY',
-        dayClock: normalizeClock(dayClock),
+        dayClock: clock,
         detention: detention ?? [],
         dvirReports: dvirReports ?? [],
         serviceChecks: serviceChecks ?? {},
@@ -998,6 +1012,9 @@ export function FlowProvider({
           ? `Attention: ${issues.join(', ')}. Safe to continue.`
           : 'Truck health nominal. Engine, coolant and battery all good.';
       },
+      checkFaultAlert: () => {
+        maybeFleetFaultAlert();
+      },
 
       // ----- Driver Aid controller methods -----
       setPref: (patch) => {
@@ -1242,6 +1259,14 @@ export function FlowProvider({
       },
     };
   }, [state, api]);
+
+  // OBD telemetry loads asynchronously after boot; startShift may already have
+  // run, so re-check the auto fleet alert once the sample arrives.
+  useEffect(() => {
+    if (state.booted && state.obdSample && !state.faultAlertSent) {
+      controller.checkFaultAlert();
+    }
+  }, [controller, state.booted, state.obdSample, state.faultAlertSent]);
 
   return <FlowContext.Provider value={controller}>{children}</FlowContext.Provider>;
 }

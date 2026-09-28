@@ -184,10 +184,11 @@ export function makeMockDocument(
   stopId: string | undefined,
   type: DocumentType,
   fields: ParsedFields,
+  driverId: string = DEMO_DRIVER_ID,
 ): TruckDocument {
   return {
     id: `doc_${Math.random().toString(36).slice(2, 10)}`,
-    driverId: DEMO_DRIVER_ID,
+    driverId,
     stopId,
     type,
     rawImageUrl: null, // real upload path — see services/truck-buddy-api.ts

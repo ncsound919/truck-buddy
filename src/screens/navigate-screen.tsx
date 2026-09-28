@@ -239,6 +239,8 @@ export function NavigateScreen() {
             </View>
             <Pressable
               style={styles.runItem}
+              accessibilityRole="button"
+              accessibilityLabel={flow.onBreak ? 'End break' : 'Start break'}
               onPress={() => (flow.onBreak ? flow.endBreak() : flow.startBreak())}>
               <Text style={styles.runLabel}>BREAK</Text>
               <Text style={[styles.runValue, { color: dark ? '#FFFFFF' : '#101828' }]}>

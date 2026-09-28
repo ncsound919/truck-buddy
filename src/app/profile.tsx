@@ -8,7 +8,6 @@ import { useIsDark } from '@/constants/brand';
 import { Spacing } from '@/constants/theme';
 import {
   AUTHORITY,
-  AUTHORITY_LABEL,
   EQUIPMENT,
   profileLabel,
   ROLES,
@@ -90,6 +89,9 @@ function Option({ label, active, onPress }: { label: string; active: boolean; on
   return (
     <Pressable
       onPress={onPress}
+      accessibilityRole="radio"
+      accessibilityState={{ selected: active }}
+      accessibilityLabel={label}
       style={({ pressed }) => [
         styles.row,
         { borderBottomColor: dark ? '#263349' : '#E0E5EC' },
