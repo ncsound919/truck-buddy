@@ -2,7 +2,7 @@ import { PageTitle, SectionCard } from '@/components/portal/primitives';
 import { Badge } from '@/components/ui/badge';
 import { Stat } from '@/components/ui/card';
 import { CheckIcon, ExternalIcon } from '@/components/icons';
-import { portalApi } from '@/lib/mock-api';
+import { getPortalApi } from '@/lib/portal-api';
 import { canFactor } from '@/lib/perspective';
 import { FactoringPanel } from './factoring';
 import { BillingSection } from './billing';
@@ -10,13 +10,15 @@ import { BillingSection } from './billing';
 export const dynamic = 'force-dynamic';
 
 export default async function MoneyPage() {
+  const api = await getPortalApi();
   const [today, loads, profile] = await Promise.all([
-    portalApi.getToday(),
-    portalApi.getLoads(),
-    portalApi.getOperatingProfile(),
+    api.getToday(),
+    api.getLoads(),
+    api.getOperatingProfile(),
   ]);
   const factoring = canFactor(profile);
   const e = today.earnings;
+  const thisLoadPayout = today.load?.payout ?? 0;
   const active = loads.filter((l) => l.status !== 'delivered');
   const deliveredTotal = loads
     .filter((l) => l.status === 'delivered')
@@ -30,8 +32,8 @@ export default async function MoneyPage() {
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Week gross" value={`$${e.weekGross.toLocaleString()}`} hint="4 loads" />
-        <Stat label="Week miles" value={e.weekMiles.toLocaleString()} hint={`On $${e.ratePerMile.toFixed(2)}/mi avg`} />
+        <Stat label="Week gross" value={`$${e.weekGross.toLocaleString()}`} hint="Sample data" />
+        <Stat label="Week miles" value={e.weekMiles.toLocaleString()} hint="Sample data" />
         <Stat label="Pending settlement" value={`$${active.reduce((s, l) => s + l.payout, 0).toLocaleString()}`} hint={`${active.length} load(s) in progress`} />
         <Stat label="Delivered & billable" value={`$${deliveredTotal.toLocaleString()}`} hint="Ready to invoice" />
       </div>
@@ -40,9 +42,15 @@ export default async function MoneyPage() {
         <div className="space-y-6 lg:col-span-2">
           <SectionCard title="Settlements">
             <div className="mb-3 rounded-xl border border-success-soft bg-success-soft/40 px-3.5 py-2 text-sm">
-              <b className="text-ink">This load:</b> {today.load ? `${today.load.ref} · ` : ''}
-              <span className="font-bold text-success">${e.thisLoadPayout.toLocaleString()}</span> settles
-              on delivery POD verification.
+              {today.load ? (
+                <>
+                  <b className="text-ink">This load:</b> {today.load.ref} ·{' '}
+                  <span className="font-bold text-success">${thisLoadPayout.toLocaleString()}</span> settles
+                  on delivery POD verification.
+                </>
+              ) : (
+                <span className="text-muted">No active load — accept one from the board to start settling.</span>
+              )}
             </div>
             {loads.length === 0 ? (
               <p className="text-sm text-muted">No loads yet.</p>
@@ -74,7 +82,7 @@ export default async function MoneyPage() {
 
         <div className="space-y-6">
           {factoring ? (
-            <FactoringPanel thisLoad={e.thisLoadPayout} deliveredTotal={deliveredTotal} />
+            <FactoringPanel thisLoad={thisLoadPayout} deliveredTotal={deliveredTotal} />
           ) : (
             <div className="rounded-2xl border border-line bg-bg-alt p-5 text-sm text-muted">
               <b className="text-ink">Factoring</b> is for independents who run their own authority.
