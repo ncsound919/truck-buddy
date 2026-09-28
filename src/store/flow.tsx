@@ -657,15 +657,11 @@ export function FlowProvider({
       if (cancelled) return;
       runHydratedRef.current = true;
       const clock = normalizeClock(dayClock);
-      // A fresh launch means the app was closed — fold the closed span into the
-      // drive total and stop live accrual, so a session left open (or the app
-      // reopened a day later) can't fabricate an 11-hour drive violation.
+      // A fresh launch means the app was closed mid-segment. We can't verify how
+      // much of that gap the driver was actually driving, so we drop the open
+      // segment rather than credit unverified time (which would fabricate an
+      // 11-hour violation). Banked driveMinutes are preserved.
       if (clock.driveStartedAt) {
-        const elapsed = Math.max(
-          0,
-          Math.floor((Date.now() - new Date(clock.driveStartedAt).getTime()) / 60000),
-        );
-        clock.driveMinutes += elapsed;
         clock.driveStartedAt = null;
       }
       dispatch({
