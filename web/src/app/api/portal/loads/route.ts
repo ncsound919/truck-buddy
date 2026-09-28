@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { portalApi } from '@/lib/mock-api';
+import { getPortalApi } from '@/lib/portal-api';
 import { requirePortalUser } from '@/lib/portal-guard';
 
 /**
@@ -8,17 +8,17 @@ import { requirePortalUser } from '@/lib/portal-guard';
  * GET  /api/portal/loads          -> { loads, open, sources }
  * POST /api/portal/loads          -> accept { id }
  *
- * The authoritative store is a single server module instance shared by server
- * components and these handlers, so an accept here is visible on the next
- * server render (and, via the same base URL, to the mobile app client).
+ * Reads/writes run through the live Supabase seam (RLS-scoped to the caller)
+ * when configured, and the accept mutation is an atomic server-side RPC.
  */
 export async function GET() {
   const denied = await requirePortalUser();
   if (denied) return denied;
+  const api = await getPortalApi();
   const [loads, open, sources] = await Promise.all([
-    portalApi.getLoads(),
-    portalApi.getOpenLoads(),
-    portalApi.getBoardSources(),
+    api.getLoads(),
+    api.getOpenLoads(),
+    api.getBoardSources(),
   ]);
   return NextResponse.json({
     loads,
@@ -38,9 +38,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'bad_request' }, { status: 400 });
   }
   try {
-    const load = await portalApi.acceptLoad(id);
+    const api = await getPortalApi();
+    const load = await api.acceptLoad(id);
     return NextResponse.json({ load });
   } catch {
-    return NextResponse.json({ error: 'load_not_found' }, { status: 404 });
+    return NextResponse.json({ error: 'load_unavailable' }, { status: 409 });
   }
 }

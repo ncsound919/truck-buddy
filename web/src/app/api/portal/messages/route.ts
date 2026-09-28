@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
 
-import { portalApi } from '@/lib/mock-api';
+import { getPortalApi } from '@/lib/portal-api';
 import { requirePortalUser } from '@/lib/portal-guard';
 
 export async function GET() {
   const denied = await requirePortalUser();
   if (denied) return denied;
-  return NextResponse.json({ messages: await portalApi.getMessages() });
+  const api = await getPortalApi();
+  return NextResponse.json({ messages: await api.getMessages() });
 }
 
 export async function POST(req: Request) {
@@ -20,6 +21,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'bad_request' }, { status: 400 });
   }
   if (!text) return NextResponse.json({ error: 'empty' }, { status: 422 });
-  const message = await portalApi.sendDispatchMessage(text);
+  const api = await getPortalApi();
+  const message = await api.sendDispatchMessage(text);
   return NextResponse.json({ message });
 }

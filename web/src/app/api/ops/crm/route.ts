@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server';
 
 import { insert, opsConfigured } from '@/lib/ops/admin-client';
+import { getOpsUser } from '@/lib/ops/ops-auth';
 
 export async function POST(req: Request) {
   if (!opsConfigured()) return NextResponse.json({ ok: false, error: 'ops_not_configured' }, { status: 503 });
+  // Service-role write behind an allowlisted admin session — never a public endpoint.
+  const opsUser = await getOpsUser().catch(() => null);
+  if (!opsUser?.admin) return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
   let body: { company?: string; contact_name?: string; contact_email?: string; source?: string; value_usd?: number | null };
   try {
     body = (await req.json()) as typeof body;

@@ -4,19 +4,20 @@ import { LoadCard, PageTitle } from '@/components/portal/primitives';
 import { ExternalBoards } from '@/components/portal/external-boards';
 import { EmptyState } from '@/components/ui/feedback';
 import { ChatIcon, TruckIcon } from '@/components/icons';
-import { portalApi } from '@/lib/mock-api';
+import { getPortalApi } from '@/lib/portal-api';
 import { compatibleEquipments, EQUIPMENT_LABEL, huntsOwnWork } from '@/lib/perspective';
 import { LoadBoard } from './load-board';
 
 export const dynamic = 'force-dynamic';
 
 export default async function LoadsPage() {
-  const profile = await portalApi.getOperatingProfile();
+  const api = await getPortalApi();
+  const profile = await api.getOperatingProfile();
   const hunts = huntsOwnWork(profile);
   const [loads, open, sources] = await Promise.all([
-    portalApi.getLoads(),
-    portalApi.getOpenLoads(),
-    portalApi.getBoardSources(),
+    api.getLoads(),
+    api.getOpenLoads(),
+    api.getBoardSources(),
   ]);
   const sourceNames = sources.map((s) => s.name);
   const mine = loads.filter((l) => l.status !== 'open');

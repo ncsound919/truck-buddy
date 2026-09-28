@@ -16,7 +16,19 @@ export async function middleware(req: NextRequest) {
   const res = NextResponse.next({ request: req });
   const path = req.nextUrl.pathname;
 
-  if (!url || !anonKey) return res;
+  const isProtected = PROTECTED.some((p) => path === p || path.startsWith(p + '/'));
+  // Public funnel: anyone can see plans; checkout itself requires sign-in
+  // (the pricing page redirects to /auth?next=/portal/pricing on 401).
+  if (path === '/portal/pricing' || path.startsWith('/portal/pricing/')) return res;
+  if (!isProtected) return res;
+
+  // Fail closed: if Supabase is not configured we cannot verify a session, so
+  // never serve an authenticated area. Redirect to sign-in instead of leaking it.
+  if (!url || !anonKey) {
+    const signIn = new URL('/auth', req.url);
+    signIn.searchParams.set('next', path);
+    return NextResponse.redirect(signIn);
+  }
 
   const sb = createServerClient(url, anonKey, {
     cookies: {
@@ -29,12 +41,6 @@ export async function middleware(req: NextRequest) {
       },
     },
   });
-
-  const isProtected = PROTECTED.some((p) => path === p || path.startsWith(p + '/'));
-  // Public funnel: anyone can see plans; checkout itself requires sign-in
-  // (the pricing page redirects to /auth?next=/portal/pricing on 401).
-  if (path === '/portal/pricing' || path.startsWith('/portal/pricing/')) return res;
-  if (!isProtected) return res;
 
   const {
     data: { user },

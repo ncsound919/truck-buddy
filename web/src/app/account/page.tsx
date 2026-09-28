@@ -11,7 +11,7 @@ export default async function AccountPage() {
   if (!user) redirect('/auth');
 
   const sb = await getSupabaseServer();
-  const { data: profile } = await sb.from('profiles').select('full_name,email').eq('id', user.id).maybeSingle();
+  const { data: profile } = await sb.from('profiles').select('full_name').eq('id', user.id).maybeSingle();
 
   return (
     <div className="min-h-screen bg-bg-alt">
@@ -33,7 +33,7 @@ export default async function AccountPage() {
             <h2 className="text-[15px] font-extrabold text-ink">Profile</h2>
             <NameForm
               name={profile?.full_name || user.name || ''}
-              email={profile?.email || user.email || ''}
+              email={user.email || ''}
             />
           </div>
 
