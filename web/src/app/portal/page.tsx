@@ -45,10 +45,10 @@ export default async function OverviewPage() {
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="This week · gross" value={`$${today.earnings.weekGross.toLocaleString()}`} hint="4 loads" />
-        <Stat label="This load · payout" value={`$${today.earnings.thisLoadPayout.toLocaleString()}`} hint={today.nextStopLabel} />
-        <Stat label="Miles this week" value={today.earnings.weekMiles.toLocaleString()} hint="On 2.00/mi rate" />
-        <Stat label="Truck" value={today.driver.truck.plate} hint={`${today.driver.truck.make} ${today.driver.truck.model}`} />
+        <Stat label="This week · gross" value={`$${today.earnings.weekGross.toLocaleString()}`} hint="Sample data" />
+        <Stat label="This load · payout" value={`$${(load?.payout ?? today.earnings.thisLoadPayout).toLocaleString()}`} hint={today.nextStopLabel || 'No active load'} />
+        <Stat label="Miles this week" value={today.earnings.weekMiles.toLocaleString()} hint="Sample data" />
+        <Stat label="Truck" value={today.driver.truck.plate} hint="Sample data" />
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
@@ -138,7 +138,15 @@ export default async function OverviewPage() {
             </ul>
           </SectionCard>
 
-          <SectionCard title="Earnings" action={<MoneyIcon className="text-accent" width={18} height={18} />}>
+          <SectionCard
+            title="Earnings"
+            action={
+              <span className="flex items-center gap-2">
+                <Badge tone="neutral">Sample data</Badge>
+                <MoneyIcon className="text-accent" width={18} height={18} />
+              </span>
+            }
+          >
             <div className="flex items-end justify-between">
               <div>
                 <div className="text-3xl font-black text-ink">${today.earnings.weekGross.toLocaleString()}</div>
