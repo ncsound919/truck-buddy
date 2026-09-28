@@ -40,8 +40,20 @@ The UI/state machine is real. Everything the app dispatches runs through
 | OCR | ML Kit on device (native) / canned fallback (web) | ✅ native only; web uses demo path. |
 | GPS | `expo-location` on device / last-known stub (web) | ✅ native only. |
 | Repair auto-ticket | `sendDispatch('email')` → same Resend path | ✅ same as email above. |
+| Shared road advisories (read) | `src/services/shared-data.ts` → PostgREST `road_reports` with the anon key from `app.json` extra | ✅ real, read-only. `road_reports` carries a scoped anon-read policy for active rows; all other social tables stay authenticated-only. |
 
 `dispatchTransport` defaults to `'mock'`. Set to `'live'` in the My Tools panel once the Edge Function is deployed.
+
+## Shared backend across the three apps
+The cab app, the web portal (`web/`) and the social app (separate repo
+`TruckBuddy-Social`, now migrated off Firebase) all point at the **same Supabase
+project** (`bxjtmcumkffcbzuhusxn`) and the same identity — `auth.users.id`. The
+shared schema, RLS, counters, storage buckets and Realtime publication live in
+`supabase/migrations/` (applied + recorded in `supabase_migrations`). The web
+portal persists its operating profile in `public.profiles.metadata.operatingProfile`
+(`web/src/app/api/portal/profile/route.ts`), and the cab app reads shared road
+advisories through `src/services/shared-data.ts`.
+
 
 ## Email transport stack
 ```

@@ -1,12 +1,13 @@
 import { PageTitle, SectionCard } from '@/components/portal/primitives';
 import { Badge } from '@/components/ui/badge';
-import { portalApi } from '@/lib/mock-api';
+import { getPortalApi } from '@/lib/portal-api';
 import { DispatchThread } from './thread';
 
 export const dynamic = 'force-dynamic';
 
 export default async function DispatchPage() {
-  const [messages, today] = await Promise.all([portalApi.getMessages(), portalApi.getToday()]);
+  const api = await getPortalApi();
+  const [messages, today] = await Promise.all([api.getMessages(), api.getToday()]);
   const unread = messages.filter((m) => m.unread && m.sender !== 'me').length;
 
   return (

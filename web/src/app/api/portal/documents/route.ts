@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
 
-import { portalApi } from '@/lib/mock-api';
+import { getPortalApi } from '@/lib/portal-api';
 import { requirePortalUser } from '@/lib/portal-guard';
 
 export async function GET() {
   const denied = await requirePortalUser();
   if (denied) return denied;
-  return NextResponse.json({ documents: await portalApi.getDocuments() });
+  const api = await getPortalApi();
+  return NextResponse.json({ documents: await api.getDocuments() });
 }
 
 export async function POST(req: Request) {
@@ -22,6 +23,7 @@ export async function POST(req: Request) {
   if (!kind || !loadRef) {
     return NextResponse.json({ error: 'missing_fields' }, { status: 422 });
   }
-  const doc = await portalApi.uploadDocument(kind as never, loadRef);
+  const api = await getPortalApi();
+  const doc = await api.uploadDocument(kind as never, loadRef);
   return NextResponse.json({ document: doc });
 }

@@ -1,14 +1,15 @@
 import { DocKindLabel, DocStatusBadge, PageTitle } from '@/components/portal/primitives';
 import { Button } from '@/components/ui/button';
 import { DownloadIcon } from '@/components/icons';
-import { portalApi } from '@/lib/mock-api';
+import { getPortalApi } from '@/lib/portal-api';
 import { CaptureDoc } from './capture-doc';
 import { RealOcrScan } from './real-ocr';
 
 export const dynamic = 'force-dynamic';
 
 export default async function DocumentsPage() {
-  const [docs, loads] = await Promise.all([portalApi.getDocuments(), portalApi.getLoads()]);
+  const api = await getPortalApi();
+  const [docs, loads] = await Promise.all([api.getDocuments(), api.getLoads()]);
   const loadRefs = loads.map((l) => l.ref);
 
   return (

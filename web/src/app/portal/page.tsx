@@ -10,16 +10,17 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { ArrowRightIcon, BellIcon, MoneyIcon, RouteIcon } from '@/components/icons';
 import { Stat } from '@/components/ui/card';
-import { portalApi } from '@/lib/mock-api';
+import { getPortalApi } from '@/lib/portal-api';
 
 export const dynamic = 'force-dynamic';
 
 export default async function OverviewPage() {
+  const api = await getPortalApi();
   const [today, profile] = await Promise.all([
-    portalApi.getToday(),
-    portalApi.getOperatingProfile(),
+    api.getToday(),
+    api.getOperatingProfile(),
   ]);
-  const load = today.load!;
+  const load = today.load;
   const pending = today.documents.find((d) => d.status === 'pending');
 
   return (
@@ -56,15 +57,26 @@ export default async function OverviewPage() {
             title="Active load"
             action={<Link href="/portal/loads" className="text-sm font-bold text-accent hover:underline">View loads →</Link>}
           >
-            <LoadCard load={load} />
-            <div className="mt-4 flex flex-wrap gap-2.5">
-              <span className="inline-flex items-center gap-2 rounded-xl bg-accent-soft px-3 py-2 text-sm font-bold text-accent-600">
-                <RouteIcon width={18} height={18} />
-                Next stop · {load.destination}
-              </span>
-            </div>
+            {load ? (
+              <>
+                <LoadCard load={load} />
+                <div className="mt-4 flex flex-wrap gap-2.5">
+                  <span className="inline-flex items-center gap-2 rounded-xl bg-accent-soft px-3 py-2 text-sm font-bold text-accent-600">
+                    <RouteIcon width={18} height={18} />
+                    Next stop · {load.destination}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-muted">
+                No active load.{' '}
+                <Link href="/portal/loads" className="font-bold text-accent hover:underline">
+                  Accept one from the board
+                </Link>
+                .
+              </p>
+            )}
           </SectionCard>
-
           <SectionCard title="Documents">
             <ul className="divide-y divide-line">
               {today.documents.map((d) => (
@@ -98,7 +110,7 @@ export default async function OverviewPage() {
         </div>
 
         <div className="space-y-6">
-          <SectionCard title="Truck health" action={<Badge tone="success">Live</Badge>}>
+          <SectionCard title="Truck health" action={<Badge tone="neutral">Sample</Badge>}>
             <HealthPanel health={today.health} />
             <p className="mt-3 text-xs text-faint">Updated {today.health.updatedAt}</p>
           </SectionCard>

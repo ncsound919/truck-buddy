@@ -30,8 +30,11 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files
-.env*.local
+# local env files / build secrets (never commit)
+.env
+.env.*
+!.env.example
+.truckbuddy-build.env
 
 # coverage + test artifacts
 coverage/
