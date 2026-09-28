@@ -5,6 +5,7 @@ import { GestureSurface } from '@/components/gesture-surface';
 import { VoiceCommand, VoicePalette } from '@/components/voice-palette';
 import { DEMO_INSPECTION_ITEMS } from '@/domain/data';
 import { ArrivedScreen } from '@/screens/arrived-screen';
+import { DvirScreen } from '@/screens/dvir-screen';
 import { IdleScreen } from '@/screens/idle-screen';
 import { InspectionScreen } from '@/screens/inspection-screen';
 import { NavigateScreen } from '@/screens/navigate-screen';
@@ -55,6 +56,10 @@ export function FlowScreen() {
     if (s === 'navigating') {
       list.push({ label: `Arrive at ${stopName}`, run: flow.arrive });
     }
+    if (s === 'dvir') {
+      list.push({ label: 'Certify and sign', run: () => flow.certifyDvir() });
+      list.push({ label: 'Back to inspection', run: () => flow.dvirBack() });
+    }
     if (s === 'arrived') {
       list.push({ label: 'Complete stop', run: flow.completeStop });
       list.push({
@@ -100,7 +105,7 @@ export function FlowScreen() {
         const msg = flow.readTruckHealth();
         if (msg) {
           haptic(msg.startsWith('Truck') ? 'selection' : 'alert');
-          announce(msg);
+          announce(`Sample diagnostics. ${msg}`);
         }
       },
     });
@@ -123,6 +128,8 @@ export function FlowScreen() {
       case 'pretrip':
       case 'posttrip':
         return <InspectionScreen />;
+      case 'dvir':
+        return <DvirScreen />;
       case 'navigating':
         return <NavigateScreen />;
       case 'arrived':
@@ -146,6 +153,8 @@ export function FlowScreen() {
       case 'pretrip':
       case 'posttrip':
         return flow.inspectionPass;
+      case 'dvir':
+        return flow.certifyDvir;
       case 'navigating':
         return flow.arrive;
       case 'arrived':
@@ -162,6 +171,8 @@ export function FlowScreen() {
       case 'pretrip':
       case 'posttrip':
         return state.inspectionIndex > 0 ? flow.inspectionBack : undefined;
+      case 'dvir':
+        return flow.dvirBack;
       case 'arrived':
         return flow.backOnRoad;
       case 'scan':

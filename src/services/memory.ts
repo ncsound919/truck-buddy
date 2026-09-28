@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import type { DayClock, DetentionClaim, Dispatch, DriverPrefs, RememberedStop } from '@/domain/types';
+import type { DayClock, DetentionClaim, Dispatch, DriverPrefs, DvirReport, RememberedStop } from '@/domain/types';
 
 /**
  * Local "memory" layer (spec: driver memory). This is what survives a restart —
@@ -16,6 +16,8 @@ const KEYS = {
   log: 'tb.aidlog.v1',
   clock: 'tb.clock.v1',
   detention: 'tb.detention.v1',
+  dvir: 'tb.dvir.v1',
+  service: 'tb.service.v1',
 } as const;
 
 async function read<T>(key: string): Promise<T | null> {
@@ -69,5 +71,19 @@ export const memory = {
   },
   saveDetention(list: DetentionClaim[]): Promise<void> {
     return write(KEYS.detention, list);
+  },
+
+  async loadDvir(): Promise<DvirReport[] | null> {
+    return read<DvirReport[]>(KEYS.dvir);
+  },
+  saveDvir(list: DvirReport[]): Promise<void> {
+    return write(KEYS.dvir, list);
+  },
+
+  async loadService(): Promise<Record<string, string[]> | null> {
+    return read<Record<string, string[]>>(KEYS.service);
+  },
+  saveService(map: Record<string, string[]>): Promise<void> {
+    return write(KEYS.service, map);
   },
 };

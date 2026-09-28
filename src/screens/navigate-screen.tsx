@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { BigButton, Kicker, Pill } from '@/components/ui';
+import { BigButton, Kicker, Pill, SampleTag } from '@/components/ui';
 import { Brand, useIsDark } from '@/constants/brand';
 import { Spacing } from '@/constants/theme';
-import { stopOnSiteMinutes } from '@/domain/data';
+import { stopOnSiteMinutes, minutesToClock } from '@/domain/data';
 import type { DestinationKind } from '@/domain/types';
 import { useFlow } from '@/store/flow';
 import { useNow } from '@/hooks/use-now';
@@ -39,6 +39,9 @@ export function NavigateScreen() {
   const dutyMin = flow.onDutyMinutesAt(now);
   const dutyTxt = `${Math.floor(dutyMin / 60)}h ${String(dutyMin % 60).padStart(2, '0')}`;
   const breakLeft = flow.breakRemainingMinutesAt(now);
+  const hos = flow.hosStatus(now);
+  const driveTxt = minutesToClock(hos.driveMinutes);
+  const hosViolation = hos.violation !== 'none';
   const triage = flow.faultTriage();
 
   const scheduleDim = () => {
@@ -58,7 +61,7 @@ export function NavigateScreen() {
           (destCount > 0
             ? `${destCount} delivery point${destCount === 1 ? '' : 's'}, about ${onSite} minutes on site. `
             : '') +
-          `Drive ETA ${currentStop.etaMinutes} minutes.`,
+          `Planned drive time ${currentStop.etaMinutes} minutes, sample route.`,
       );
     }
     dimTimerRef.current = setTimeout(() => {
@@ -76,24 +79,28 @@ export function NavigateScreen() {
     let cancelled = false;
     watchRef.current?.stop();
     void (async () => {
-      const res = await geofence(
-        { lat: currentStop.lat, lng: currentStop.lng },
-        currentStop.geofenceMeters,
-      );
-      if (cancelled || !res) return;
-      if (res.permission !== 'granted') {
-        setGpsState('denied');
-        return;
+      try {
+        const res = await geofence(
+          { lat: currentStop.lat, lng: currentStop.lng },
+          currentStop.geofenceMeters,
+        );
+        if (cancelled || !res) return;
+        if (res.permission !== 'granted') {
+          setGpsState('denied');
+          return;
+        }
+        setGpsState('granted');
+        watchRef.current = res.start(
+          (m) => {
+            if (!cancelled) setLiveMeters(m);
+          },
+          () => {
+            if (!cancelled) arriveViaGps();
+          },
+        );
+      } catch {
+        if (!cancelled) setGpsState('denied');
       }
-      setGpsState('granted');
-      watchRef.current = res.start(
-        (m) => {
-          if (!cancelled) setLiveMeters(m);
-        },
-        () => {
-          if (!cancelled) arriveViaGps();
-        },
-      );
     })();
     return () => {
       cancelled = true;
@@ -103,6 +110,12 @@ export function NavigateScreen() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gpsEnabled, stopId]);
+
+  // Prefs hydrate asynchronously after first render — adopt the saved GPS choice.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing an async-hydrated pref, not a render loop
+    if (state.prefs?.gpsEnabled != null) setGpsEnabled(state.prefs.gpsEnabled);
+  }, [state.prefs?.gpsEnabled]);
 
   useEffect(() => () => {
     if (dimTimerRef.current) clearTimeout(dimTimerRef.current);
@@ -119,7 +132,8 @@ export function NavigateScreen() {
   const progressText = `${currentStop.sequence} of ${totalStopCount}`;
   const onSiteMin = stopOnSiteMinutes(currentStop);
   const totalMin = currentStop.etaMinutes + onSiteMin;
-  const destCount = currentStop.destinations.length;
+  const destinations = currentStop.destinations ?? [];
+  const destCount = destinations.length;
 
   const kindIcon: Record<DestinationKind, string> = {
     house: '🏠',
@@ -160,7 +174,7 @@ export function NavigateScreen() {
                 <Text style={styles.destKicker}>
                   DELIVERY POINTS · {destCount} · ~{onSiteMin} MIN ON SITE
                 </Text>
-                {currentStop.destinations.map((d) => (
+                {destinations.map((d) => (
                   <View key={d.id} style={styles.destRow}>
                     <Text style={styles.destIcon}>{kindIcon[d.kind]}</Text>
                     <View style={styles.destInfo}>
@@ -184,6 +198,9 @@ export function NavigateScreen() {
                 <Text style={styles.etaSub}>
                   {currentStop.etaMinutes}m drive · {onSiteMin}m on site
                 </Text>
+                <View style={{ marginTop: 4 }}>
+                  <SampleTag label="Sample ETA" />
+                </View>
               </View>
             </View>
           </View>
@@ -199,6 +216,17 @@ export function NavigateScreen() {
               <Text style={[styles.runValue, { color: dark ? '#FFFFFF' : '#101828' }]}>{dutyTxt}</Text>
             </View>
             <View style={styles.runItem}>
+              <Text style={styles.runLabel}>DRIVE</Text>
+              <Text
+                style={[
+                  styles.runValue,
+                  { color: hosViolation ? Brand.warning : dark ? '#FFFFFF' : '#101828' },
+                ]}>
+                {driveTxt}
+              </Text>
+              <Text style={styles.runSub}>{minutesToClock(hos.driveRemainingMinutes)} left</Text>
+            </View>
+            <View style={styles.runItem}>
               <Text style={styles.runLabel}>FAULT</Text>
               <Text
                 style={[
@@ -207,17 +235,24 @@ export function NavigateScreen() {
                 ]}>
                 {triage.severity === 'ok' ? 'Clear' : triage.severity === 'caution' ? 'Caution' : 'Stop'}
               </Text>
+              <SampleTag label="Sample" />
             </View>
             <Pressable
               style={styles.runItem}
               onPress={() => (flow.onBreak ? flow.endBreak() : flow.startBreak())}>
               <Text style={styles.runLabel}>BREAK</Text>
               <Text style={[styles.runValue, { color: dark ? '#FFFFFF' : '#101828' }]}>
-                {flow.onBreak ? `${breakLeft}m` : 'Take 30'}
+                {flow.onBreak ? `${breakLeft}m` : hos.breakRequired ? 'Now' : 'Take 30'}
               </Text>
               <Text style={styles.runSub}>{flow.onBreak ? 'Tap to end' : 'Tap to start'}</Text>
             </Pressable>
           </View>
+
+          {hos.messages.length ? (
+            <View style={styles.hosWarn}>
+              <Text style={styles.hosWarnText}>{hos.messages.join(' ')}</Text>
+            </View>
+          ) : null}
 
           <View style={styles.actions}>
             <View style={[styles.gpsCard, dark ? styles.gpsCardDark : styles.gpsCardLight]}>
@@ -316,6 +351,8 @@ const styles = StyleSheet.create({
   runLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 0.8, color: '#8FA1BB' },
   runValue: { fontSize: 17, fontWeight: '800' },
   runSub: { fontSize: 10, fontWeight: '600', color: '#8A94A6' },
+  hosWarn: { backgroundColor: Brand.warningSoft, borderRadius: 14, padding: Spacing.two },
+  hosWarnText: { color: Brand.warning, fontSize: 12.5, fontWeight: '700', lineHeight: 17 },
   gpsCard: { borderRadius: 20, padding: Spacing.three },
   gpsCardLight: { backgroundColor: '#F0F3F8' },
   gpsCardDark: { backgroundColor: '#16233A' },

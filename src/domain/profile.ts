@@ -52,8 +52,10 @@ export const AUTHORITY_LABEL: Record<AuthorityId, string> = {
 
 /** Concise "perspective" string, e.g. "Company driver · Box truck". */
 export function profileLabel(p: OperatingProfile): string {
-  const role = ROLE_LABEL[p.role].split(' (')[0];
-  return `${role} · ${EQUIPMENT_LABEL[p.equipment]}`;
+  // Guard against a stale/renamed enum value persisted on the device — an
+  // unknown role must not crash the home screen.
+  const role = (ROLE_LABEL[p.role] ?? 'Driver').split(' (')[0];
+  return `${role} · ${EQUIPMENT_LABEL[p.equipment] ?? p.equipment}`;
 }
 
 export const ROLES = Object.entries(ROLE_LABEL) as [RoleId, string][];

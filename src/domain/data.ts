@@ -1,9 +1,15 @@
 import type {
   Contact,
+  DayClock,
   DiagnosticSample,
   DocumentType,
   DriverPrefs,
+  DvirReport,
+  HosStatus,
+  HosViolation,
+  InspectionEntry,
   InspectionItem,
+  InspectionScope,
   ParsedFields,
   RememberedStop,
   Route,
@@ -15,7 +21,9 @@ import type {
 
 /** Short random suffix for locally-created records (remembered stops, dispatches). */
 export function uid(): string {
-  return Math.random().toString(36).slice(2, 10);
+  // Always 8 chars so the id can't collapse to "" (Math.random()===0) and
+  // collide as a dedup key in CAPTURE_DONE.
+  return Math.random().toString(36).slice(2, 10).padEnd(8, '0');
 }
 
 /**
@@ -145,7 +153,7 @@ export function makeDemoRoute(): Route {
 
 /** On-site delivery time for a stop: sum of every destination's handling time. */
 export function stopOnSiteMinutes(stop: Pick<Stop, 'destinations'>): number {
-  return stop.destinations.reduce((total, d) => total + d.handlingMinutes, 0);
+  return (stop.destinations ?? []).reduce((total, d) => total + (d.handlingMinutes ?? 0), 0);
 }
 
 /** Builds a complete, consistent demo session. */
@@ -184,7 +192,7 @@ export function makeMockDocument(
     type,
     rawImageUrl: null, // real upload path — see services/truck-buddy-api.ts
     extractedText: {
-      raw: `0${fields.bol_number}\nSHIPPER: ${fields.shipper}\nCONSIGNEE: ${fields.consignee}\nWEIGHT: ${fields.weight} LBS`,
+      raw: `${fields.bol_number}\nSHIPPER: ${fields.shipper}\nCONSIGNEE: ${fields.consignee}\nWEIGHT: ${fields.weight} LBS`,
     },
     parsedFields: fields,
     status: 'verified',
@@ -226,7 +234,17 @@ export const DEFAULT_PREFS: DriverPrefs = {
 
 /** Backfills prefs stored before a field existed (cheap migration). */
 export function normalizePrefs(prefs: Partial<DriverPrefs> | null): DriverPrefs {
-  return { ...DEFAULT_PREFS, ...(prefs ?? {}) };
+  const merged = { ...DEFAULT_PREFS, ...(prefs ?? {}) };
+  // Sanitize the map fields — a stored `null` would throw on index access.
+  return {
+    ...merged,
+    smsCarriers:
+      merged.smsCarriers && typeof merged.smsCarriers === 'object' ? merged.smsCarriers : {},
+    contactPhones:
+      merged.contactPhones && typeof merged.contactPhones === 'object'
+        ? merged.contactPhones
+        : {},
+  };
 }
 
 /** Pre-seeded GPS memory so the feature is visible before the driver saves one. */
@@ -260,9 +278,128 @@ export const HOS_RULES = {
   onDutyHours: 14,
   driveHours: 11,
   breakMinutes: 30,
+  /** FMCSA 395.3(a)(3)(ii): a 30-min break is required after 8h of driving/on-duty. */
+  breakAfterMinutes: 8 * 60,
   // Demo only: how long a fatigued driver must rest. Not an FMCSA rule.
   fatigueRestMinutes: 30,
 } as const;
+
+/** Backfills a stored clock that predates drive-tracking (cheap migration). */
+export function normalizeClock(clock: Partial<DayClock> | null): DayClock {
+  const fatigue = clock?.fatigueChecks;
+  return {
+    shiftStartedAt: clock?.shiftStartedAt ?? null,
+    breakStartedAt: clock?.breakStartedAt ?? null,
+    driveStartedAt: clock?.driveStartedAt ?? null,
+    driveMinutes: clock?.driveMinutes ?? 0,
+    lastBreakEndedAt: clock?.lastBreakEndedAt ?? null,
+    // A corrupted non-array would throw when spread by LOG_FATIGUE.
+    fatigueChecks: Array.isArray(fatigue) ? fatigue : [],
+  };
+}
+
+/** Formats whole minutes as "7h 12m" (or "12m" when under an hour). */
+export function minutesToClock(minutes: number): string {
+  const m = Math.max(0, Math.floor(minutes));
+  const h = Math.floor(m / 60);
+  const rem = m % 60;
+  return h > 0 ? `${h}h ${String(rem).padStart(2, '0')}m` : `${rem}m`;
+}
+
+/**
+ * Live hours-of-service snapshot. Pure — no side effects — so the run bar,
+ * compliance dashboard, and summary screens all read the same numbers.
+ */
+export function computeHosStatus(clock: DayClock, now: number): HosStatus {
+  const driveLimitMinutes = HOS_RULES.driveHours * 60;
+  const onDutyLimitMinutes = HOS_RULES.onDutyHours * 60;
+
+  const liveDrive = clock.driveStartedAt
+    ? Math.max(0, Math.floor((now - new Date(clock.driveStartedAt).getTime()) / 60000))
+    : 0;
+  const driveMinutes = clock.driveMinutes + liveDrive;
+
+  let onDutyMinutes = 0;
+  if (clock.shiftStartedAt) {
+    const start = new Date(clock.shiftStartedAt).getTime();
+    const end = clock.breakStartedAt
+      ? Math.min(now, new Date(clock.breakStartedAt).getTime())
+      : now;
+    onDutyMinutes = Math.max(0, Math.floor((end - start) / 60000));
+  }
+
+  const onBreak = !!clock.breakStartedAt;
+  const breakRemainingMinutes = onBreak
+    ? Math.max(0, Math.ceil((HOS_RULES.breakMinutes * 60000 - (now - new Date(clock.breakStartedAt as string).getTime())) / 60000))
+    : 0;
+
+  // 30-min break required once 8h have passed since the last break (or shift start).
+  const sinceBreakStart = clock.lastBreakEndedAt ?? clock.shiftStartedAt;
+  const sinceBreakMs = sinceBreakStart ? now - new Date(sinceBreakStart).getTime() : 0;
+  const breakRequired = !onBreak && sinceBreakMs >= HOS_RULES.breakAfterMinutes * 60000 && driveMinutes > 0;
+
+  const driveRemaining = driveLimitMinutes - driveMinutes;
+  const onDutyRemaining = onDutyLimitMinutes - onDutyMinutes;
+
+  let violation: HosViolation = 'none';
+  if (driveRemaining <= 0) violation = 'drive';
+  else if (onDutyRemaining <= 0) violation = 'onduty';
+  else if (breakRequired) violation = 'break';
+  else if (driveRemaining <= 60 || onDutyRemaining <= 60) violation = 'warning';
+
+  const messages: string[] = [];
+  if (violation === 'drive') messages.push(`11-hour drive limit reached — stop driving.`);
+  else if (driveRemaining <= 60) messages.push(`${minutesToClock(driveRemaining)} of drive time left.`);
+  if (violation === 'onduty') messages.push(`14-hour on-duty window over — end shift or go off duty.`);
+  else if (onDutyRemaining <= 60) messages.push(`${minutesToClock(onDutyRemaining)} left in your 14-hour window.`);
+  if (violation === 'break' || breakRequired) messages.push(`30-minute break required — ${minutesToClock(HOS_RULES.breakAfterMinutes)} elapsed.`);
+
+  return {
+    driveMinutes,
+    driveLimitMinutes,
+    driveRemainingMinutes: Math.max(0, driveRemaining),
+    onDutyMinutes,
+    onDutyLimitMinutes,
+    onDutyRemainingMinutes: Math.max(0, onDutyRemaining),
+    breakRemainingMinutes,
+    onBreak,
+    breakRequired,
+    violation,
+    messages,
+  };
+}
+
+/** Builds a retained DVIR record from a completed inspection. */
+export function buildDvirReport(opts: {
+  scope: InspectionScope;
+  entries: InspectionEntry[];
+  driverId: string;
+  driverName: string;
+  vehicleId: string;
+  vehicleLabel: string;
+  startedAt: string;
+}): DvirReport {
+  const defects = opts.entries
+    .filter((e) => !e.passed)
+    .map((e) => ({
+      itemId: e.itemId,
+      label: DEMO_INSPECTION_ITEMS.find((i) => i.id === e.itemId)?.label ?? e.itemId,
+      note: e.issueNote,
+    }));
+  return {
+    id: `dvir_${uid()}`,
+    scope: opts.scope,
+    driverId: opts.driverId,
+    driverName: opts.driverName,
+    vehicleId: opts.vehicleId,
+    vehicleLabel: opts.vehicleLabel,
+    entries: opts.entries,
+    defects,
+    startedAt: opts.startedAt,
+    completedAt: new Date().toISOString(),
+    certifiedAt: null,
+  };
+}
 
 /** Canned, driver-friendly messages. Replace with configurable templates later. */
 export const DISPATCH_TEMPLATES: DispatchTemplates = {

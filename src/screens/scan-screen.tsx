@@ -36,6 +36,7 @@ export function ScanScreen() {
   const [ocrBusy, setOcrBusy] = useState(false);
   const [permission, requestPermission] = useCameraPermissions({ get: true });
   const camRef = useRef<CameraView | null>(null);
+  const cancelledRef = useRef(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
 
   if (!currentStop) return null;
@@ -63,8 +64,11 @@ export function ScanScreen() {
     try {
       const photo = await cam.takePictureAsync({ quality: 0.7 });
       const uri = photo.uri;
+      if (cancelledRef.current) return;
       setPhotoUri(uri);
       const lines = await recognizeImageText(uri);
+      // The driver may have tapped Cancel (unmounting this screen) mid-capture.
+      if (cancelledRef.current) return;
       if (lines && lines.length) {
         const doc = buildOcrDocument(type, currentStop.id, currentStop.name, uri, lines);
         commitCapture(doc);
@@ -77,7 +81,7 @@ export function ScanScreen() {
       haptic('reject');
       announce('Camera capture failed.');
     } finally {
-      setOcrBusy(false);
+      if (!cancelledRef.current) setOcrBusy(false);
     }
   };
 
@@ -94,7 +98,12 @@ export function ScanScreen() {
       <View style={styles.body}>
         <View style={styles.headerRow}>
           <Text style={[styles.title, { color: dark ? '#FFFFFF' : '#101828' }]}>Scan {type}</Text>
-          <Pressable onPress={cancelScan} style={({ pressed }) => pressed && { opacity: 0.6 }}>
+          <Pressable
+            onPress={() => {
+              cancelledRef.current = true;
+              cancelScan();
+            }}
+            style={({ pressed }) => pressed && { opacity: 0.6 }}>
             <Text style={styles.cancel}>Cancel</Text>
           </Pressable>
         </View>
@@ -153,7 +162,16 @@ export function ScanScreen() {
               <Image source={{ uri: photoUri }} style={styles.preview} resizeMode="cover" />
             ) : null}
             <View style={styles.verifiedCard}>
-              <Pill dot="success" label={live ? 'Verified · on-device OCR' : 'Verified · demo OCR'} />
+              <Pill
+                dot={verified.status === 'verified' ? 'success' : 'accent'}
+                label={
+                  verified.status === 'verified'
+                    ? live
+                      ? 'Verified · on-device OCR'
+                      : 'Verified · demo OCR'
+                    : 'Needs review · check fields'
+                }
+              />
               <Text style={[styles.bolNumber, { color: dark ? '#FFFFFF' : '#101828' }]}>
                 {verified.parsedFields.bol_number}
               </Text>
@@ -194,6 +212,8 @@ export function ScanScreen() {
               {DOC_TYPES.map((t) => (
                 <Pressable
                   key={t}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: type === t }}
                   onPress={() => {
                     setType(t);
                     haptic('selection');
@@ -216,7 +236,7 @@ export function ScanScreen() {
             ) : (
               <View style={styles.captureBlock}>
                 <BigButton
-                  label={live ? 'Capture Document' : 'Capture Document'}
+                  label="Capture Document"
                   sublabel={
                     live
                       ? 'Thumb tap to snap · real OCR'

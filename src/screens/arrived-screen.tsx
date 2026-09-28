@@ -38,8 +38,10 @@ export function ArrivedScreen() {
   const waitMin = state.arrivalAt
     ? Math.max(0, Math.floor((now - new Date(state.arrivalAt).getTime()) / 60000))
     : 0;
+  const serviceProg = currentStop ? flow.serviceProgress(currentStop.id) : { done: 0, total: 0 };
   if (!currentStop) return null;
 
+  const destinations = currentStop.destinations ?? [];
   const contacts = state.contacts;
   const forwardTarget = state.prefs?.docForwardToContactId
     ? contacts.find((c) => c.id === state.prefs?.docForwardToContactId) ?? null
@@ -103,14 +105,14 @@ export function ArrivedScreen() {
           <Text style={[styles.stopName, { color: dark ? '#FFFFFF' : '#101828' }]}>
             {currentStop.name}
           </Text>
-          {currentStop.destinations.length > 0 ? (
+          {destinations.length > 0 ? (
             <View style={[styles.destCard, dark ? styles.destCardDark : styles.destCardLight]}>
               <Text style={styles.destKicker}>
-                DELIVER TO · {currentStop.destinations.length} POINT
-                {currentStop.destinations.length === 1 ? '' : 'S'} · ~
+                DELIVER TO · {destinations.length} POINT
+                {destinations.length === 1 ? '' : 'S'} · ~
                 {stopOnSiteMinutes(currentStop)} MIN
               </Text>
-              {currentStop.destinations.map((d) => (
+              {destinations.map((d) => (
                 <View key={d.id} style={styles.destRow}>
                   <Text style={styles.destIcon}>{({ house: '🏠', building: '🏢', dock: '🚪', unit: '📍' } as Record<DestinationKind, string>)[d.kind]}</Text>
                   <View style={styles.destInfo}>
@@ -135,6 +137,15 @@ export function ArrivedScreen() {
         {state.prefs?.autoNotifyOnArrival ? (
           <View style={styles.verifiedRow}>
             <Pill dot="accent" label="Auto-texting arrival · on" />
+          </View>
+        ) : null}
+
+        {flow.contract && serviceProg.total ? (
+          <View style={styles.verifiedRow}>
+            <Pill
+              dot={serviceProg.done === serviceProg.total ? 'success' : 'accent'}
+              label={`White-glove ${serviceProg.done}/${serviceProg.total} · ${flow.contract.counterparty}`}
+            />
           </View>
         ) : null}
 
@@ -175,6 +186,36 @@ export function ArrivedScreen() {
                   <View style={styles.actionsCard}>
                     <BigButton label="📧 Auto-email paperwork" sublabel={forwardTarget ? `To ${forwardTarget.label}` : 'Set a recipient in Tools → Memory'} tone="secondary" onPress={() => void sendDocEmail(lastDoc)} />
                     <BigButton label="🔊 Read it back" sublabel="Hear the verified fields" tone="secondary" onPress={() => readBackDoc(lastDoc)} />
+                  </View>
+                </>
+              ) : null}
+
+              {flow.contract && serviceProg.total ? (
+                <>
+                  <Text style={styles.sectionKicker}>
+                    Contract · {flow.contract.counterparty} service steps
+                  </Text>
+                  <View style={styles.sectionCard}>
+                    {flow.serviceSteps.map((s) => {
+                      const done = flow.isServiceStepDone(currentStop!.id, s.id);
+                      return (
+                        <Pressable
+                          key={s.id}
+                          style={styles.stepRow}
+                          onPress={() => flow.toggleServiceStep(currentStop!.id, s.id)}
+                          accessibilityRole="checkbox"
+                          accessibilityState={{ checked: done }}
+                          accessibilityLabel={s.label}>
+                          <Text
+                            style={[styles.stepMark, { color: done ? Brand.success : '#8FA1BB' }]}>
+                            {done ? '✓' : '○'}
+                          </Text>
+                          <Text style={[styles.stepLabel, done && styles.stepLabelDone]}>
+                            {s.label}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
                   </View>
                 </>
               ) : null}
@@ -248,6 +289,13 @@ const styles = StyleSheet.create({
   contactActions: { flexDirection: 'row', gap: Spacing.two },
   chipBtn: { backgroundColor: '#1E3252', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
   chipText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
+  stepRow: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.three,
+    paddingVertical: Spacing.three, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#263349',
+  },
+  stepMark: { fontSize: 16, fontWeight: '800', width: 22, textAlign: 'center' },
+  stepLabel: { flex: 1, color: '#FFFFFF', fontSize: 14.5, fontWeight: '700', lineHeight: 19 },
+  stepLabelDone: { color: '#6E7F97', textDecorationLine: 'line-through' },
   actionsCard: { gap: Spacing.two },
   closeBtn: { alignItems: 'center', paddingVertical: Spacing.three },
   closeText: { color: Brand.accent, fontSize: 16, fontWeight: '800' },

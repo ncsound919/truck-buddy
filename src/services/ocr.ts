@@ -58,7 +58,7 @@ export function isOnDeviceOcrAvailable(): boolean {
 /** Best-effort extraction of the fields Truck Buddy shows. Falls back gracefully. */
 export function parseBolFields(raw: string, consigneeFallback: string): ParsedFields {
   const bol =
-    raw.match(/(?:BOL|BL)[-:\s]*([A-Z0-9-]{4,})/i)?.[0]?.trim() ?? '';
+    raw.match(/(?:BOL|B\/L)\b[\s:#-]*([A-Z0-9-]{4,})/i)?.[1]?.trim() ?? '';
   const weightMatch = raw.match(/([\d,]+)\s*(?:lbs|lb|pounds)/i);
   // Prefer ISO (YYYY-MM-DD) — the order Truck Buddy itself stamps. Falls back
   // to a M/D/YYYY (or D/M/YYYY) guess, then today only when no date is present.
@@ -95,6 +95,12 @@ export function buildOcrDocument(
   lines: string[],
 ): TruckDocument {
   const raw = lines.join('\n');
+  const parsedFields = parseBolFields(raw, consigneeFallback);
+  // Only call a capture "verified" when OCR actually produced identifying data.
+  // A fallback parse (no BOL / no weight) is filed as pending for the driver.
+  const confident =
+    parsedFields.bol_number !== 'BOL-unknown' &&
+    (parsedFields.weight > 0 || parsedFields.shipper !== '—');
   return {
     id: `doc_${uid()}`,
     driverId: DEMO_DRIVER_ID,
@@ -102,8 +108,8 @@ export function buildOcrDocument(
     type,
     rawImageUrl: uri, // real photo captured on the device
     extractedText: { raw, lines },
-    parsedFields: parseBolFields(raw, consigneeFallback),
-    status: 'verified',
+    parsedFields,
+    status: confident ? 'verified' : 'pending',
     createdAt: new Date().toISOString(),
   };
 }

@@ -3,10 +3,11 @@ import { router } from 'expo-router';
 import { Image, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { BigButton, Pill } from '@/components/ui';
+import { BigButton, Pill, SampleTag } from '@/components/ui';
 import { Brand, useIsDark } from '@/constants/brand';
 import { Spacing } from '@/constants/theme';
 import { stopOnSiteMinutes } from '@/domain/data';
+import { PROGRAM_LABEL, VERDICT_LABEL } from '@/domain/contract';
 import { profileLabel } from '@/domain/profile';
 import { SMS_CARRIERS } from '@/domain/types';
 import type { SmsCarrierId } from '@/domain/types';
@@ -36,7 +37,10 @@ export function IdleScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
-      <View style={styles.body}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.body}
+        showsVerticalScrollIndicator={false}>
         <View style={styles.hero}>
           <Image
             source={require('@/../assets/images/truckbuddy-logo.jpg')}
@@ -57,6 +61,22 @@ export function IdleScreen() {
         </View>
 
         <BigButton label="Start Shift" onPress={startShift} />
+
+        {flow.contractCompliance && !flow.contractCompliance.canRun ? (
+          <View style={styles.gateBanner}>
+            <Text style={styles.gateTitle}>
+              Contract compliance blocked · {flow.contract?.counterparty}
+            </Text>
+            {flow.contractCompliance.blockers.map((b) => (
+              <Text key={b} style={styles.gateLine}>
+                • {b}
+              </Text>
+            ))}
+            <Text style={styles.gateNote}>
+              Resolve these before dispatching under this contract. The demo will still run.
+            </Text>
+          </View>
+        ) : null}
 
         {vehicle ? (
           <View style={[styles.card, dark ? styles.cardDark : styles.cardLight]}>
@@ -80,6 +100,24 @@ export function IdleScreen() {
               {stops.length} stops · {deliveryPoints} delivery point{deliveryPoints === 1 ? '' : 's'} ·{' '}
               {onSiteTotal} min on site · {totalMiles} miles
             </Text>
+            <View style={{ marginTop: 8 }}>
+              <SampleTag label="Sample route data" />
+            </View>
+          </View>
+        ) : null}
+
+        {flow.contract ? (
+          <View style={[styles.card, dark ? styles.cardDark : styles.cardLight]}>
+            <Text style={styles.cardKicker}>CONTRACT · {flow.contract.counterparty.toUpperCase()}</Text>
+            <Text style={[styles.routeTitle, { color: dark ? '#FFFFFF' : '#101828' }]}>
+              {PROGRAM_LABEL[flow.contract.program]}
+            </Text>
+            <Text style={styles.vehicleMeta}>
+              {flow.contractCompliance ? VERDICT_LABEL[flow.contractCompliance.verdict] : '—'} ·{' '}
+              {flow.contract.requirements.length} requirements ·{' '}
+              {flow.serviceSteps.length} white-glove steps
+              {flow.contractCompliance && !flow.contractCompliance.canRun ? ' · dispatch blocked' : ''}
+            </Text>
           </View>
         ) : null}
 
@@ -88,11 +126,14 @@ export function IdleScreen() {
           <Pressable onPress={() => setToolsOpen(true)}>
             <Text style={styles.debugLink}>My tools · memory &amp; auto-help</Text>
           </Pressable>
+          <Pressable onPress={() => router.push('/compliance')}>
+            <Text style={styles.debugLink}>Compliance · HOS, DVIR &amp; audit record</Text>
+          </Pressable>
           <Pressable onPress={() => router.push('/debug')}>
             <Text style={styles.debugLink}>Developer · inspect live state</Text>
           </Pressable>
         </View>
-      </View>
+      </ScrollView>
 
       <Modal transparent animationType="slide" visible={toolsOpen} onRequestClose={closeTools}>
         <Pressable style={styles.backdrop} onPress={closeTools}>
@@ -297,7 +338,11 @@ export function IdleScreen() {
                       </View>
                       <View style={styles.memRight}>
                         <Text style={styles.memUses}>{s.uses}×</Text>
-                        <Pressable onPress={() => flow.forgetRememberedStop(s.id)} hitSlop={10}>
+                        <Pressable
+                          onPress={() => flow.forgetRememberedStop(s.id)}
+                          hitSlop={10}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Remove remembered stop ${s.name}`}>
                           <Text style={styles.memRemove}>✕</Text>
                         </Pressable>
                       </View>
@@ -317,7 +362,14 @@ export function IdleScreen() {
                         {d.kind === 'email' ? '📧' : d.kind === 'sms' ? '💬' : '📞'} {d.subject}
                       </Text>
                       <Text style={styles.activityMeta}>
-                        {d.to.label} · {d.status === 'sent' ? 'sent' : 'queued — retries when online'}
+                        {d.to.label} ·{' '}
+                        {d.status === 'sent'
+                          ? 'sent'
+                          : d.status === 'demo'
+                            ? 'demo — not sent'
+                            : d.status === 'failed'
+                              ? 'failed'
+                              : 'queued — retries when online'}
                       </Text>
                     </View>
                   ))}
@@ -339,7 +391,8 @@ export function IdleScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  body: { flex: 1, padding: Spacing.four, gap: Spacing.four, justifyContent: 'center' },
+  scroll: { flex: 1 },
+  body: { flexGrow: 1, padding: Spacing.four, gap: Spacing.four, justifyContent: 'center' },
   hero: { gap: Spacing.three, marginBottom: Spacing.two },
   logo: { width: '100%', height: 180, alignSelf: 'center' },
   greeting: { fontSize: 40, fontWeight: '800', lineHeight: 46 },
@@ -347,6 +400,10 @@ const styles = StyleSheet.create({
   cardLight: { backgroundColor: '#F0F3F8' },
   cardDark: { backgroundColor: '#16233A' },
   cardKicker: { fontSize: 12, fontWeight: '800', letterSpacing: 1.2, color: Brand.accent, marginBottom: 4 },
+  gateBanner: { backgroundColor: '#3A1414', borderRadius: 20, padding: Spacing.three, gap: 4 },
+  gateTitle: { color: '#FF8A8A', fontSize: 13, fontWeight: '800', letterSpacing: 0.4, marginBottom: 2 },
+  gateLine: { color: '#FFFFFF', fontSize: 13, fontWeight: '700', lineHeight: 18 },
+  gateNote: { color: '#E7B6B6', fontSize: 12, fontWeight: '600', lineHeight: 17, marginTop: 2 },
   vehicleLine: { fontSize: 20, fontWeight: '800', lineHeight: 26 },
   routeTitle: { fontSize: 22, fontWeight: '800', lineHeight: 28 },
   vehicleMeta: { fontSize: 14, fontWeight: '600', color: '#5B6575', lineHeight: 20 },
