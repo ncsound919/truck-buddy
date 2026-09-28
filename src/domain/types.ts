@@ -137,6 +137,27 @@ export interface InspectionEntry {
 }
 
 /**
+ * A retained Driver Vehicle Inspection Report (DVIR). FMCSA 49 CFR 396.11
+ * requires a pre-trip and post-trip inspection with the driver's certification
+ * and any defects noted. The record survives on-device for audit/retention.
+ */
+export interface DvirReport {
+  id: string;
+  scope: InspectionScope;
+  driverId: string;
+  driverName: string;
+  vehicleId: string;
+  vehicleLabel: string;
+  entries: InspectionEntry[];
+  /** The failed items — defects that must be reported/repaired. */
+  defects: { itemId: string; label: string; note?: string }[];
+  startedAt: string;
+  completedAt: string;
+  /** Set when the driver certifies the report (sign-off). */
+  certifiedAt: string | null;
+}
+
+/**
  * Workflow steps. `idle` is pre-shift home; after `ended` the demo can reset.
  * Scan is a transient substep of `arrived` and is tracked separately.
  */
@@ -146,6 +167,7 @@ export type WorkflowStep =
   | 'navigating'
   | 'arrived'
   | 'scan'
+  | 'dvir'
   | 'posttrip'
   | 'summary'
   | 'ended';
@@ -198,7 +220,12 @@ export const SMS_CARRIERS: readonly { id: SmsCarrierId; label: string }[] = [
   { id: 'cricket', label: 'Cricket' },
 ];
 
-export type DispatchStatus = 'queued' | 'sent' | 'failed';
+/**
+ * Dispatch lifecycle. `'demo'` means the message was composed and logged
+ * on-device but nothing left the phone (mock transport) — never render it as
+ * delivered.
+ */
+export type DispatchStatus = 'queued' | 'sent' | 'demo' | 'failed';
 
 /**
  * A single driver-initiated dispatch (auto text, auto email, auto call-back).
@@ -320,13 +347,55 @@ export interface FatigueCheck {
  * Local on-duty clock. In this offline slice the whole shift counts as on-duty
  * (start -> end, minus declared breaks). A real build pairs an ELD/HOS device.
  * Persisted so it survives app restarts mid-shift.
+ *
+ * Drive time is tracked separately from on-duty so the app can enforce the
+ * HOS driving limit (11h) independent of the 14h on-duty window. Driving is
+ * inferred from the workflow: "navigating" between stops counts as driving;
+ * dock time and inspections do not.
  */
 export interface DayClock {
   /** ISO of shift start (on-duty begin). */
   shiftStartedAt: string | null;
   /** ISO when the 30-minute break began (null = not on a break). */
   breakStartedAt: string | null;
+  /** ISO when the current drive segment began (null = not driving). */
+  driveStartedAt: string | null;
+  /** Whole minutes of *completed* drive segments accumulated this shift. */
+  driveMinutes: number;
+  /** ISO when the driver's last 30-min break ended (null = none taken). */
+  lastBreakEndedAt: string | null;
   fatigueChecks: FatigueCheck[];
 }
 
 export type DispatchCategory = 'paperwork' | 'arrival' | 'repair' | 'callback';
+
+/* ------------------------------------------------------------------ */
+/* HOS / ELD compliance (hours of service)                             */
+/* ------------------------------------------------------------------ */
+
+/** Severity of the current HOS posture. */
+export type HosViolation = 'none' | 'warning' | 'break' | 'drive' | 'onduty';
+
+/**
+ * Computed snapshot of the driver's hours-of-service posture at a moment.
+ * The 60/70-hour multi-day cycle is an ELD/backend concern; this slice enforces
+ * the single-day limits a driver must watch live: 11h drive / 14h on-duty and
+ * the 30-minute break.
+ */
+export interface HosStatus {
+  /** Whole minutes of drive time this shift (completed + current segment). */
+  driveMinutes: number;
+  driveLimitMinutes: number;
+  driveRemainingMinutes: number;
+  /** Whole minutes on duty this shift, excluding an active break. */
+  onDutyMinutes: number;
+  onDutyLimitMinutes: number;
+  onDutyRemainingMinutes: number;
+  breakRemainingMinutes: number;
+  onBreak: boolean;
+  /** True when 8h of drive/on-duty has elapsed since the last 30-min break. */
+  breakRequired: boolean;
+  violation: HosViolation;
+  /** Human-readable, driver-facing warnings (empty when fully compliant). */
+  messages: string[];
+}

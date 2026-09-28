@@ -33,7 +33,10 @@ interface SharedConfig {
 }
 
 function config(): SharedConfig {
-  const extra = Constants.expo?.extra as Record<string, string> | undefined;
+  // Expo SDK 57 exposes the static app config on `expoConfig`; `expo` is not a
+  // field of the native constants (reading it always yielded undefined, which
+  // silently disabled this whole read path).
+  const extra = Constants.expoConfig?.extra as Record<string, string> | undefined;
   const base = extra?.supabaseUrl?.replace(/\/$/, '') ?? '';
   const anonKey = extra?.supabaseAnonKey ?? '';
   return { base, anonKey, enabled: Boolean(base && anonKey) };
@@ -68,12 +71,24 @@ export async function getRoadReports(limit = 20): Promise<SharedRoadReport[]> {
     limit: String(limit),
   });
 
-  const res = await fetch(`${base}/rest/v1/road_reports?${query.toString()}`, {
-    headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
-  });
-  if (!res.ok) throw new Error(`road_reports_${res.status}`);
+  // Never let a slow/unreachable board stall the driver flow: bounded timeout,
+  // and any failure degrades to the offline demo data (empty list).
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  let rows: RoadReportRow[];
+  try {
+    const res = await fetch(`${base}/rest/v1/road_reports?${query.toString()}`, {
+      headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
+      signal: controller.signal,
+    });
+    if (!res.ok) throw new Error(`road_reports_${res.status}`);
+    rows = (await res.json()) as RoadReportRow[];
+  } catch {
+    return [];
+  } finally {
+    clearTimeout(timer);
+  }
 
-  const rows = (await res.json()) as RoadReportRow[];
   return rows.map((r) => ({
     id: r.id,
     reportType: r.report_type,

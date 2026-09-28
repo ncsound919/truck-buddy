@@ -25,7 +25,7 @@ export function InspectionScreen() {
 
   const reportIssue = () => {
     haptic('alert');
-    inspectionIssue('Voice note');
+    inspectionIssue('Flagged in inspection');
     announce('Issue recorded.');
   };
 
@@ -47,17 +47,17 @@ export function InspectionScreen() {
           <BigButton label="Pass" sublabel="Swipe up also passes" tone="success" onPress={inspectionPass} />
           <BigButton
             label="Report issue"
-            sublabel="Hold for voice note"
+            sublabel="Tap to log an issue"
             tone="danger"
             onPress={() => reportIssue()}
           />
           {index > 0 ? (
-            <Text style={styles.backHint} onPress={inspectionBack}>
+            <Text style={styles.backHint} accessibilityRole="button" onPress={inspectionBack}>
               ← previous item
             </Text>
           ) : (
             <View style={styles.controlsHint}>
-              <Text style={styles.backHint}>Swipe up = pass · Hold = issue</Text>
+              <Text style={styles.backHint}>Swipe up = pass · Tap = issue</Text>
             </View>
           )}
         </View>

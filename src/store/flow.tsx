@@ -2,7 +2,16 @@ import { createContext, useContext, useEffect, useMemo, useReducer, useRef } fro
 import { AppState } from 'react-native';
 
 import { setLivePrefs } from '@/services/prefs-bridge';
-import { DEMO_INSPECTION_ITEMS, DISPATCH_TEMPLATES, HOS_RULES, makeDemoRoute, normalizePrefs, uid } from '@/domain/data';
+import { buildDvirReport, computeHosStatus, DEMO_INSPECTION_ITEMS, DISPATCH_TEMPLATES, HOS_RULES, makeDemoRoute, minutesToClock, normalizeClock, normalizePrefs, uid } from '@/domain/data';
+import {
+  buildContractCompliance,
+  DEMO_ACTIVE_CONTRACT_ID,
+  VERDICT_LABEL,
+  type ComplianceDossier,
+  type ContractCompliance,
+  type DeliveryContract,
+  type ServiceStep,
+} from '@/domain/contract';
 import type {
   Contact,
   DayClock,
@@ -12,7 +21,9 @@ import type {
   DispatchCategory,
   DispatchKind,
   DriverPrefs,
+  DvirReport,
   FatigueLevel,
+  HosStatus,
   InspectionEntry,
   InspectionScope,
   RememberedStop,
@@ -31,6 +42,20 @@ import { announce, stopVoice } from '@/services/voice';
 /** Deep clone helper for plain-data state (avoids relying on Hermes `structuredClone`). */
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
+}
+
+/** Starts the drive segment (driving = "navigating" between stops). */
+function startDriving(draft: FlowState): void {
+  if (draft.dayClock.driveStartedAt) return;
+  draft.dayClock = { ...draft.dayClock, driveStartedAt: new Date().toISOString() };
+}
+
+/** Stops the drive segment and banks the elapsed minutes. */
+function stopDriving(draft: FlowState): void {
+  const c = draft.dayClock;
+  if (!c.driveStartedAt) return;
+  const seg = Math.max(0, Math.floor((Date.now() - new Date(c.driveStartedAt).getTime()) / 60000));
+  draft.dayClock = { ...c, driveStartedAt: null, driveMinutes: c.driveMinutes + seg };
 }
 
 export interface FlowState {
@@ -62,6 +87,22 @@ export interface FlowState {
   detention: DetentionClaim[];
   /** True once a non-OK fault has been auto-reported to fleet this shift. */
   faultAlertSent: boolean;
+
+  // DVIR (driver vehicle inspection report) — sign-off & retention
+  /** ISO when the current pre/post-trip inspection began. */
+  inspectionStartedAt: string | null;
+  /** The in-progress report awaiting the driver's certification. */
+  dvirDraft: DvirReport | null;
+  /** Retained, certified reports (newest first). */
+  dvirReports: DvirReport[];
+
+  // Contract-based compliance (major-company work: Ashley, Lowe's, HHGregg)
+  /** The driver/carrier's own compliance file. */
+  dossier: ComplianceDossier | null;
+  /** Major-company contracts available to run. */
+  contracts: DeliveryContract[];
+  /** Active white-glove service steps completed, per stop (stopId → stepIds). */
+  serviceChecks: Record<string, string[]>;
 }
 
 function initialState(): FlowState {
@@ -84,9 +125,15 @@ function initialState(): FlowState {
     aidLog: [],
     arrivalAt: null,
   arrivalVia: null,
-    dayClock: { shiftStartedAt: null, breakStartedAt: null, fatigueChecks: [] },
+    dayClock: { shiftStartedAt: null, breakStartedAt: null, driveStartedAt: null, driveMinutes: 0, lastBreakEndedAt: null, fatigueChecks: [] },
     detention: [],
     faultAlertSent: false,
+    inspectionStartedAt: null,
+    dvirDraft: null,
+    dvirReports: [],
+    dossier: null,
+    contracts: [],
+    serviceChecks: {},
   };
 }
 
@@ -104,6 +151,8 @@ export type FlowAction =
   | { type: 'CAPTURE_START' }
   | { type: 'CAPTURE_DONE'; doc: TruckDocument }
   | { type: 'COMPLETE_STOP' }
+  | { type: 'CERTIFY_DVIR' }
+  | { type: 'DVIR_BACK' }
   | { type: 'END_SHIFT' }
   | { type: 'SET_OBD'; sample: DiagnosticSample }
   | {
@@ -118,7 +167,9 @@ export type FlowAction =
   | { type: 'FORGET_STOP'; id: string }
   | { type: 'LOG_DISPATCH'; dispatch: Dispatch }
   | { type: 'MARK_DISPATCH'; id: string; dispatch: Dispatch }
-  | { type: 'RUN_READY'; dayClock: DayClock; detention: DetentionClaim[] }
+  | { type: 'RUN_READY'; dayClock: DayClock; detention: DetentionClaim[]; dvirReports: DvirReport[]; serviceChecks: Record<string, string[]> }
+  | { type: 'COMPLIANCE_READY'; dossier: ComplianceDossier; contracts: DeliveryContract[] }
+  | { type: 'TOGGLE_SERVICE_STEP'; stopId: string; stepId: string }
   | { type: 'START_BREAK' }
   | { type: 'END_BREAK' }
   | { type: 'LOG_FATIGUE'; level: FatigueLevel }
@@ -137,6 +188,7 @@ function advanceAfterStop(draft: FlowState): void {
     draft.inspectionScope = 'posttrip';
     draft.inspectionIndex = 0;
     draft.inspectionEntries = [];
+    draft.inspectionStartedAt = new Date().toISOString();
     if (draft.route) draft.route.status = 'completed';
   } else {
     draft.activeStopIndex = nextIndex;
@@ -154,12 +206,18 @@ function recordInspection(draft: FlowState, passed: boolean, issueNote?: string)
   }
   const isLast = draft.inspectionIndex >= DEMO_INSPECTION_ITEMS.length - 1;
   if (isLast) {
-    if (draft.inspectionScope === 'pretrip') {
-      draft.step = 'navigating';
-      if (draft.route) draft.route.status = 'in_progress';
-    } else {
-      draft.step = 'summary';
-    }
+    // Inspection walk-around is done — build the DVIR for the driver to certify.
+    const v = draft.session?.vehicle;
+    draft.dvirDraft = buildDvirReport({
+      scope: draft.inspectionScope,
+      entries: draft.inspectionEntries,
+      driverId: draft.session?.driver.id ?? '',
+      driverName: draft.session?.driver.name ?? 'Driver',
+      vehicleId: v?.id ?? '',
+      vehicleLabel: v ? `${v.year} ${v.make} ${v.model}` : 'Truck',
+      startedAt: draft.inspectionStartedAt ?? new Date().toISOString(),
+    });
+    draft.step = 'dvir';
   } else {
     draft.inspectionIndex += 1;
   }
@@ -177,8 +235,17 @@ function reducer(state: FlowState, action: FlowAction): FlowState {
 
     case 'RESET': {
       const fresh = initialState();
+      // These are hydrated once by run-once effects that will not fire again, so
+      // they must survive a reset (otherwise prefs/contacts/contracts vanish).
       return {
         ...fresh,
+        prefs: draft.prefs,
+        contacts: draft.contacts,
+        rememberedStops: draft.rememberedStops,
+        aidLog: draft.aidLog,
+        dossier: draft.dossier,
+        contracts: draft.contracts,
+        obdSample: draft.obdSample,
         booted: true,
         session: draft.session,
         route: makeDemoRoute(),
@@ -190,6 +257,7 @@ function reducer(state: FlowState, action: FlowAction): FlowState {
       draft.inspectionScope = 'pretrip';
       draft.inspectionIndex = 0;
       draft.inspectionEntries = [];
+      draft.inspectionStartedAt = new Date().toISOString();
       draft.faultAlertSent = false;
       // Start the on-duty clock on the first shift of the stored day.
       if (!draft.dayClock.shiftStartedAt) {
@@ -203,16 +271,23 @@ function reducer(state: FlowState, action: FlowAction): FlowState {
       return draft;
 
     case 'INSPECTION_ISSUE':
-      recordInspection(draft, false, action.note || 'Voice note');
+      recordInspection(draft, false, action.note || 'Flagged in inspection');
       return draft;
 
     case 'INSPECTION_BACK':
-      if (draft.inspectionIndex > 0) draft.inspectionIndex -= 1;
+      if (draft.inspectionIndex > 0) {
+        // Re-opening an item drops its recorded answer so re-answering replaces
+        // it (otherwise the DVIR keeps contradictory/duplicate entries).
+        const reopenId = DEMO_INSPECTION_ITEMS[draft.inspectionIndex]?.id;
+        draft.inspectionEntries = draft.inspectionEntries.filter((e) => e.itemId !== reopenId);
+        draft.inspectionIndex -= 1;
+      }
       return draft;
 
     case 'SIMULATE_ARRIVE': {
       const stop = draft.route?.stops[draft.activeStopIndex];
       if (stop && stop.status === 'pending') stop.status = 'arrived';
+      stopDriving(draft);
       draft.step = 'arrived';
       draft.arrivalAt = new Date().toISOString();
       draft.arrivalVia = action.via ?? 'manual';
@@ -222,6 +297,7 @@ function reducer(state: FlowState, action: FlowAction): FlowState {
     case 'GO_BACK_ON_ROAD': {
       const stop = draft.route?.stops[draft.activeStopIndex];
       if (stop && stop.status === 'arrived') stop.status = 'pending';
+      startDriving(draft);
       draft.step = 'navigating';
       draft.arrivalAt = null;
       draft.arrivalVia = null;
@@ -274,10 +350,39 @@ function reducer(state: FlowState, action: FlowAction): FlowState {
         draft.arrivalAt = null;
       }
       advanceAfterStop(draft);
+      if (draft.step === 'navigating') startDriving(draft);
+      else if (draft.step === 'posttrip') stopDriving(draft);
+      return draft;
+    }
+
+    case 'CERTIFY_DVIR': {
+      if (draft.dvirDraft) {
+        const certified: DvirReport = { ...draft.dvirDraft, certifiedAt: new Date().toISOString() };
+        draft.dvirReports = [certified, ...draft.dvirReports].slice(0, 60);
+        draft.dvirDraft = null;
+        draft.inspectionEntries = [];
+        if (draft.inspectionScope === 'pretrip') {
+          draft.step = 'navigating';
+          if (draft.route) draft.route.status = 'in_progress';
+          startDriving(draft);
+        } else {
+          draft.step = 'summary';
+          stopDriving(draft);
+        }
+      }
+      return draft;
+    }
+
+    case 'DVIR_BACK': {
+      draft.dvirDraft = null;
+      draft.step = draft.inspectionScope === 'posttrip' ? 'posttrip' : 'pretrip';
+      draft.inspectionIndex = DEMO_INSPECTION_ITEMS.length - 1;
+      draft.inspectionEntries = draft.inspectionEntries.slice(0, -1);
       return draft;
     }
 
     case 'END_SHIFT':
+      stopDriving(draft);
       draft.step = 'ended';
       return draft;
 
@@ -295,18 +400,49 @@ function reducer(state: FlowState, action: FlowAction): FlowState {
     case 'RUN_READY':
       draft.dayClock = action.dayClock;
       draft.detention = action.detention;
+      draft.dvirReports = action.dvirReports;
+      draft.serviceChecks = action.serviceChecks;
       return draft;
+
+    case 'COMPLIANCE_READY':
+      draft.dossier = action.dossier;
+      draft.contracts = action.contracts;
+      return draft;
+
+    case 'TOGGLE_SERVICE_STEP': {
+      const current = draft.serviceChecks[action.stopId] ?? [];
+      const next = current.includes(action.stepId)
+        ? current.filter((id) => id !== action.stepId)
+        : [...current, action.stepId];
+      draft.serviceChecks = { ...draft.serviceChecks, [action.stopId]: next };
+      return draft;
+    }
 
     case 'START_BREAK':
-      draft.dayClock = {
-        ...draft.dayClock,
-        breakStartedAt: draft.dayClock.breakStartedAt ?? new Date().toISOString(),
-      };
+      if (!draft.dayClock.breakStartedAt) {
+        // A break is off-duty driving — close the drive segment or HOS will
+        // keep accruing drive time for the whole break.
+        stopDriving(draft);
+        draft.dayClock = {
+          ...draft.dayClock,
+          breakStartedAt: new Date().toISOString(),
+        };
+      }
       return draft;
 
-    case 'END_BREAK':
-      draft.dayClock = { ...draft.dayClock, breakStartedAt: null };
+    case 'END_BREAK': {
+      const startedAt = draft.dayClock.breakStartedAt;
+      const lastedMs = startedAt ? Date.now() - new Date(startedAt).getTime() : 0;
+      const qualified = lastedMs >= HOS_RULES.breakMinutes * 60000;
+      draft.dayClock = {
+        ...draft.dayClock,
+        breakStartedAt: null,
+        // Only a qualifying (>=30 min) break resets the 8-hour clock.
+        lastBreakEndedAt: qualified ? new Date().toISOString() : draft.dayClock.lastBreakEndedAt,
+      };
+      if (draft.step === 'navigating') startDriving(draft);
       return draft;
+    }
 
     case 'LOG_FATIGUE':
       draft.dayClock = {
@@ -323,7 +459,7 @@ function reducer(state: FlowState, action: FlowAction): FlowState {
       return draft;
 
     case 'SET_PREFS':
-      draft.prefs = { ...(draft.prefs ?? ({} as DriverPrefs)), ...action.patch };
+      draft.prefs = normalizePrefs({ ...(draft.prefs ?? {}), ...action.patch });
       return draft;
 
     case 'REMEMBER_STOP': {
@@ -381,19 +517,50 @@ export interface FlowController {
   completeStop: () => void;
   endShift: () => void;
   readTruckHealth: () => string | null;
+  /** Re-evaluate the auto fleet fault alert (called when OBD telemetry arrives). */
+  checkFaultAlert: () => void;
 
   // Time, fatigue, detention & triage (cab-side run tracking)
   onBreak: boolean;
   /** Whole minutes on duty at `now` (ms epoch), excluding an active break. */
   onDutyMinutesAt: (now: number) => number;
+  /** Whole minutes of drive time at `now` (completed + current segment). */
+  driveMinutesAt: (now: number) => number;
   /** Minutes left in the break at `now`, or 0 when not on a break. */
   breakRemainingMinutesAt: (now: number) => number;
+  /** Live hours-of-service snapshot (drive / on-duty / break / violations). */
+  hosStatus: (now: number) => HosStatus;
   detentionCount: number;
   detentionTotalMinutes: number;
   faultTriage: () => { summary: string; canContinue: boolean; severity: 'ok' | 'caution' | 'stop' };
   startBreak: () => void;
   endBreak: () => void;
   logFatigue: (level: FatigueLevel) => void;
+
+  // DVIR — driver vehicle inspection report (sign-off & retention)
+  /** The report awaiting the driver's certification (null outside the DVIR step). */
+  dvir: DvirReport | null;
+  /** Retained, certified reports (newest first). */
+  dvirReports: DvirReport[];
+  certifyDvir: () => void;
+  dvirBack: () => void;
+  /** Audit-ready compliance record as plain text (for sharing/export). */
+  exportCompliance: () => string;
+
+  // Contract-based compliance (major-company work)
+  /** The driver/carrier's own compliance file. */
+  dossier: ComplianceDossier | null;
+  /** All major-company contracts available to run. */
+  contracts: DeliveryContract[];
+  /** The contract the driver is currently running under. */
+  contract: DeliveryContract | null;
+  /** Active contract crossed against the dossier — the pre-shift gate. */
+  contractCompliance: ContractCompliance | null;
+  /** White-glove service steps the active contract requires per stop. */
+  serviceSteps: ServiceStep[];
+  isServiceStepDone: (stopId: string, stepId: string) => boolean;
+  toggleServiceStep: (stopId: string, stepId: string) => void;
+  serviceProgress: (stopId: string) => { done: number; total: number };
 
   // Driver Aids (one-handed outreach + memory)
   setPref: (patch: Partial<DriverPrefs>) => void;
@@ -416,6 +583,7 @@ export function FlowProvider({
   const [state, dispatch] = useReducer(reducer, undefined, initialState);
   const bootedRef = useRef(false);
   const aidsBootedRef = useRef(false);
+  const runHydratedRef = useRef(false);
 
   useEffect(() => {
     if (bootedRef.current) return;
@@ -455,13 +623,17 @@ export function FlowProvider({
 
   // Persist driver memory whenever it changes (after first hydration).
   useEffect(() => {
-    if (!state.booted || !state.prefs) return;
+    // Don't write until the run records have been read back — otherwise the
+    // initial empty clock/detention/DVIR would overwrite stored history.
+    if (!state.booted || !state.prefs || !runHydratedRef.current) return;
     setLivePrefs(state.prefs);
     void memory.savePrefs(state.prefs);
     void memory.saveRemembered(state.rememberedStops);
     void memory.saveLog(state.aidLog);
     void memory.saveClock(state.dayClock);
     void memory.saveDetention(state.detention);
+    void memory.saveDvir(state.dvirReports);
+    void memory.saveService(state.serviceChecks);
   }, [
     state.booted,
     state.prefs,
@@ -469,25 +641,58 @@ export function FlowProvider({
     state.aidLog,
     state.dayClock,
     state.detention,
+    state.dvirReports,
+    state.serviceChecks,
   ]);
 
-  // Hydrate the run clock + detention log from device storage.
+  // Hydrate the run clock + detention + DVIR history from device storage.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const [dayClock, detention] = await Promise.all([
+      const [dayClock, detention, dvirReports, serviceChecks] = await Promise.all([
         memory.loadClock(),
         memory.loadDetention(),
+        memory.loadDvir(),
+        memory.loadService(),
       ]);
       if (cancelled) return;
-      const clock: DayClock =
-        dayClock ?? { shiftStartedAt: null, breakStartedAt: null, fatigueChecks: [] };
-      dispatch({ type: 'RUN_READY', dayClock: clock, detention: detention ?? [] });
+      runHydratedRef.current = true;
+      const clock = normalizeClock(dayClock);
+      // A fresh launch means the app was closed mid-segment. We can't verify how
+      // much of that gap the driver was actually driving, so we drop the open
+      // segment rather than credit unverified time (which would fabricate an
+      // 11-hour violation). Banked driveMinutes are preserved.
+      if (clock.driveStartedAt) {
+        clock.driveStartedAt = null;
+      }
+      dispatch({
+        type: 'RUN_READY',
+        dayClock: clock,
+        detention: detention ?? [],
+        dvirReports: dvirReports ?? [],
+        serviceChecks: serviceChecks ?? {},
+      });
     })();
     return () => {
       cancelled = true;
     };
   }, []);
+
+  // Hydrate the compliance dossier + major-company contracts from the API seam.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const [dossier, contracts] = await Promise.all([
+        api.getCompliance().catch(() => null),
+        api.getDeliveryContracts().catch(() => [] as DeliveryContract[]),
+      ]);
+      if (cancelled || !dossier) return;
+      dispatch({ type: 'COMPLIANCE_READY', dossier, contracts });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [api]);
 
   // Outbox: retry queued dispatches when the app comes foreground.
   // Anything still failing stays queued with its error in the activity log.
@@ -537,8 +742,8 @@ export function FlowProvider({
     // Resolve driver-entered phone/carrier overrides over the seeded contacts.
     const contacts = state.contacts.map((c) => ({
       ...c,
-      phone: state.prefs?.contactPhones[c.id] ?? c.phone,
-      smsCarrier: state.prefs?.smsCarriers[c.id] ?? c.smsCarrier,
+      phone: state.prefs?.contactPhones?.[c.id] ?? c.phone,
+      smsCarrier: state.prefs?.smsCarriers?.[c.id] ?? c.smsCarrier,
     }));
     const arrivalTarget = (contactId?: string): Contact | null => {
       if (contactId) return contacts.find((c) => c.id === contactId) ?? null;
@@ -577,6 +782,16 @@ export function FlowProvider({
     const vehicleLabel = state.session?.vehicle
       ? `${state.session.vehicle.year} ${state.session.vehicle.make} ${state.session.vehicle.model}`
       : 'Truck';
+
+    // Contract-based compliance: the active major-company contract crossed
+    // against the driver's file. Drives the pre-shift gate + white-glove steps.
+    const activeContract =
+      state.contracts.find((c) => c.id === DEMO_ACTIVE_CONTRACT_ID) ?? state.contracts[0] ?? null;
+    const contractCompliance =
+      activeContract && state.dossier
+        ? buildContractCompliance(activeContract, state.dossier)
+        : null;
+    const serviceSteps: ServiceStep[] = activeContract?.serviceSteps ?? [];
     // Issue -> repair ticket: auto-email the fleet when an item is flagged.
     const dispatchRepair = (itemLabel: string, note: string) => {
       if (!fleetContact?.email) return;
@@ -705,7 +920,7 @@ export function FlowProvider({
         dispatch({ type: 'INSPECTION_ISSUE', note });
         haptic('alert');
         // Auto-raise a repair ticket to the fleet for the flagged item.
-        dispatchRepair(itemLabelAt(state.inspectionIndex), note ?? 'Voice note');
+        dispatchRepair(itemLabelAt(state.inspectionIndex), note ?? 'Flagged in inspection');
       },
       inspectionBack: () => dispatch({ type: 'INSPECTION_BACK' }),
       arrive: () => {
@@ -735,13 +950,16 @@ export function FlowProvider({
           const doc = await api.ocrDocument({ stopId, type });
           dispatch({ type: 'CAPTURE_DONE', doc });
           haptic('taskComplete');
+          const ok = doc.status === 'verified';
           if (state.prefs?.readBackOnCapture) {
             const p = doc.parsedFields;
             announce(
-              `Document captured and verified. Bill of lading ${p.bol_number}, shipper ${p.shipper}, ${p.weight.toLocaleString()} pounds.`,
+              ok
+                ? `Document captured and verified. Bill of lading ${p.bol_number}, shipper ${p.shipper}, ${p.weight.toLocaleString()} pounds.`
+                : `Document captured, needs review. Bill of lading ${p.bol_number}.`,
             );
           } else {
-            announce('Document captured and verified.');
+            announce(ok ? 'Document captured and verified.' : 'Document captured — needs review.');
           }
           // Auto-pilot: silently forward the paperwork to the saved recipient.
           autoForwardDoc(doc);
@@ -753,13 +971,16 @@ export function FlowProvider({
       commitCapture: (doc) => {
         dispatch({ type: 'CAPTURE_DONE', doc });
         haptic('taskComplete');
+        const ok = doc.status === 'verified';
         if (state.prefs?.readBackOnCapture) {
           const p = doc.parsedFields;
           announce(
-            `Document captured. Bill of lading ${p.bol_number}, ${p.weight.toLocaleString()} pounds, ${doc.parsedFields.consignee}.`,
+            ok
+              ? `Document captured. Bill of lading ${p.bol_number}, ${p.weight.toLocaleString()} pounds, ${p.consignee}.`
+              : `Document captured, needs review. ${p.bol_number === 'BOL-unknown' ? 'No bill of lading number read.' : `Bill of lading ${p.bol_number}.`}`,
           );
         } else {
-          announce('Document captured.');
+          announce(ok ? 'Document captured.' : 'Document captured — needs review.');
         }
         // Auto-pilot: silently forward the paperwork to the saved recipient.
         autoForwardDoc(doc);
@@ -788,6 +1009,9 @@ export function FlowProvider({
           ? `Attention: ${issues.join(', ')}. Safe to continue.`
           : 'Truck health nominal. Engine, coolant and battery all good.';
       },
+      checkFaultAlert: () => {
+        maybeFleetFaultAlert();
+      },
 
       // ----- Driver Aid controller methods -----
       setPref: (patch) => {
@@ -806,7 +1030,11 @@ export function FlowProvider({
         announce(
           sent.status === 'sent'
             ? `Arrival text sent to ${to.label}.`
-            : `Arrival text queued for ${to.label}. It will send when connected.`,
+            : sent.status === 'demo'
+              ? `Arrival text drafted for ${to.label}. Demo mode — nothing was sent.`
+              : sent.status === 'failed'
+                ? `Arrival text to ${to.label} failed.`
+                : `Arrival text queued for ${to.label}. It will send when connected.`,
         );
       },
       sendDocEmail: async (doc, contactId) => {
@@ -833,7 +1061,11 @@ export function FlowProvider({
         announce(
           sent.status === 'sent'
             ? `Paperwork ${p.bol_number} emailed to ${to.label}.`
-            : `Paperwork ${p.bol_number} queued for ${to.label}. It will send when connected.`,
+            : sent.status === 'demo'
+              ? `Paperwork ${p.bol_number} drafted for ${to.label}. Demo mode — nothing was sent.`
+              : sent.status === 'failed'
+                ? `Paperwork ${p.bol_number} could not be sent to ${to.label}.`
+                : `Paperwork ${p.bol_number} queued for ${to.label}. It will send when connected.`,
         );
       },
       readBackDoc: (doc) => {
@@ -879,6 +1111,8 @@ export function FlowProvider({
           : now;
         return Math.max(0, Math.floor((end - start) / 60000));
       },
+      driveMinutesAt: (now) => computeHosStatus(state.dayClock, now).driveMinutes,
+      hosStatus: (now) => computeHosStatus(state.dayClock, now),
       breakRemainingMinutesAt: (now) => {
         const c = state.dayClock;
         if (!c.breakStartedAt) return 0;
@@ -923,8 +1157,113 @@ export function FlowProvider({
         haptic('selection');
         if (level >= 4) announce('You reported high fatigue. Consider a break soon.');
       },
+
+      // ----- DVIR sign-off & retention -----
+      dvir: state.dvirDraft,
+      dvirReports: state.dvirReports,
+      certifyDvir: () => {
+        dispatch({ type: 'CERTIFY_DVIR' });
+        haptic('taskComplete');
+        announce('Inspection certified. Report saved.');
+      },
+      dvirBack: () => {
+        dispatch({ type: 'DVIR_BACK' });
+        haptic('selection');
+      },
+
+      // ----- Contract-based compliance (major-company work) -----
+      dossier: state.dossier,
+      contracts: state.contracts,
+      contract: activeContract,
+      contractCompliance,
+      serviceSteps,
+      isServiceStepDone: (stopId, stepId) =>
+        (state.serviceChecks[stopId] ?? []).includes(stepId),
+      toggleServiceStep: (stopId, stepId) => {
+        dispatch({ type: 'TOGGLE_SERVICE_STEP', stopId, stepId });
+        haptic('selection');
+        const done = (state.serviceChecks[stopId] ?? []).includes(stepId);
+        announce(done ? 'Step unchecked.' : 'Delivery step done.');
+      },
+      serviceProgress: (stopId) => {
+        const completed = (state.serviceChecks[stopId] ?? []).filter((id) =>
+          serviceSteps.some((s) => s.id === id),
+        ).length;
+        return { done: completed, total: serviceSteps.length };
+      },
+      exportCompliance: () => {
+        const now = Date.now();
+        const hos = computeHosStatus(state.dayClock, now);
+        const stops = state.route?.stops ?? [];
+        const completed = stops.filter((s) => s.status === 'completed').length;
+        const miles = stops
+          .filter((s) => s.status === 'completed')
+          .reduce((a, s) => a + s.legMiles, 0);
+        const waitMin = state.detention.reduce((a, d) => a + d.elapsedMinutes, 0);
+        const sample = state.obdSample;
+        const healthLine = !sample
+          ? 'Truck health data unavailable.'
+          : (() => {
+              const hot = sample.metrics.coolant_temp > 230;
+              const lowBat = sample.metrics.battery_voltage < 12;
+              return hot
+                ? 'CRITICAL — coolant over-temperature'
+                : sample.faultCodes.length || lowBat
+                  ? 'Caution — fault code / low battery'
+                  : 'Nominal';
+            })();
+        const lines: string[] = [
+          'TRUCK BUDDY — COMPLIANCE RECORD',
+          `Driver: ${state.session?.driver.name ?? '—'} (${state.session?.driver.id ?? '—'})`,
+          `Vehicle: ${vehicleLabel}`,
+          `Generated: ${new Date(now).toLocaleString()}`,
+          '',
+        ];
+        if (activeContract && contractCompliance) {
+          lines.push(
+            `CONTRACT — ${activeContract.counterparty} (${activeContract.lane ?? activeContract.program})`,
+            `  Posture: ${VERDICT_LABEL[contractCompliance.verdict]}${contractCompliance.canRun ? '' : ' · BLOCKED'}`,
+            ...contractCompliance.requirements.map(
+              (r) => `  - ${r.title} [${r.status}]${r.blocking ? ' ← BLOCKS' : ''}`,
+            ),
+          );
+          if (contractCompliance.blockers.length) {
+            lines.push(`  Blockers: ${contractCompliance.blockers.join('; ')}`);
+          }
+          lines.push('');
+        }
+        lines.push(
+          'HOURS OF SERVICE',
+          `  Drive: ${minutesToClock(hos.driveMinutes)} / ${minutesToClock(hos.driveLimitMinutes)}`,
+          `  On duty: ${minutesToClock(hos.onDutyMinutes)} / ${minutesToClock(hos.onDutyLimitMinutes)}`,
+          `  Break: ${hos.onBreak ? `in progress, ${hos.breakRemainingMinutes}m left` : 'not on break'}`,
+          `  Status: ${hos.violation === 'none' ? 'Compliant' : `VIOLATION — ${hos.messages.join(' ')}`}`,
+          '',
+          `DVIR (inspections): ${state.dvirReports.length} retained`,
+          ...state.dvirReports.slice(0, 10).map(
+            (r) =>
+              `  - ${r.scope.toUpperCase()} ${new Date(r.completedAt).toLocaleString()} — ${
+                r.defects.length ? `${r.defects.length} defect(s)` : 'no defects'
+              }${r.certifiedAt ? ' (certified)' : ''}`,
+          ),
+          '',
+          `Detention: ${waitMin} min across ${state.detention.length} stop(s)`,
+          `Documents: ${state.docs.length} captured`,
+          `Route: ${completed}/${stops.length} stops · ${miles} mi (sample plan)`,
+          `Vehicle health: ${healthLine} (sample telemetry)`,
+        );
+        return lines.join('\n');
+      },
     };
   }, [state, api]);
+
+  // OBD telemetry loads asynchronously after boot; startShift may already have
+  // run, so re-check the auto fleet alert once the sample arrives.
+  useEffect(() => {
+    if (state.booted && state.obdSample && !state.faultAlertSent) {
+      controller.checkFaultAlert();
+    }
+  }, [controller, state.booted, state.obdSample, state.faultAlertSent]);
 
   return <FlowContext.Provider value={controller}>{children}</FlowContext.Provider>;
 }

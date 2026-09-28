@@ -17,26 +17,31 @@ export type HapticKind =
   | 'reject'
   | 'arrive';
 
+/** Swallow both sync throws and async rejections — feedback must never break the flow. */
+function safe(p: Promise<unknown>): void {
+  p?.catch(() => {});
+}
+
 export function haptic(kind: HapticKind): void {
   try {
     switch (kind) {
       case 'confirm':
       case 'taskComplete':
-        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        safe(Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success));
         break;
       case 'alert':
-        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        safe(Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning));
         break;
       case 'reject':
-        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        safe(Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error));
         break;
       case 'arrive':
         // Distinct arrival: medium impact then success
-        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        safe(Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium));
+        safe(Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success));
         break;
       case 'selection':
-        void Haptics.selectionAsync();
+        safe(Haptics.selectionAsync());
         break;
     }
   } catch {

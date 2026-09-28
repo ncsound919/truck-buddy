@@ -32,6 +32,10 @@ async function passInspection(page: Page) {
     await pass.click();
     await page.waitForTimeout(120);
   }
+  // DVIR sign-off: certify the completed inspection to proceed.
+  const certify = page.getByText('Certify & sign', { exact: true });
+  await expect(certify).toBeVisible({ timeout: 15_000 });
+  await certify.click();
 }
 
 async function arriveAtStop(page: Page, which: 0 | 1 | 2 = 0) {

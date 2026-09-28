@@ -8,7 +8,6 @@ import { useIsDark } from '@/constants/brand';
 import { Spacing } from '@/constants/theme';
 import {
   AUTHORITY,
-  AUTHORITY_LABEL,
   EQUIPMENT,
   profileLabel,
   ROLES,
@@ -63,10 +62,15 @@ export default function ProfileScreen() {
           onPress={async () => {
             if (!canSave) return;
             await setOperatingProfile(active);
-            router.back();
+            if (router.canGoBack()) router.back();
+            else router.replace('/');
           }}
         />
-        <Pressable onPress={() => router.back()} style={styles.cancelWrap}>
+        <Pressable
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
+          accessibilityRole="button"
+          accessibilityLabel="Cancel"
+          style={styles.cancelWrap}>
           <Text style={styles.cancel}>Cancel</Text>
         </Pressable>
       </View>
@@ -90,6 +94,9 @@ function Option({ label, active, onPress }: { label: string; active: boolean; on
   return (
     <Pressable
       onPress={onPress}
+      accessibilityRole="radio"
+      accessibilityState={{ selected: active }}
+      accessibilityLabel={label}
       style={({ pressed }) => [
         styles.row,
         { borderBottomColor: dark ? '#263349' : '#E0E5EC' },

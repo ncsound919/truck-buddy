@@ -12,6 +12,7 @@ import type {
   TruckDocument,
   Vehicle,
 } from '@/domain/types';
+import type { ComplianceDossier, DeliveryContract } from '@/domain/contract';
 import { getLivePrefs } from './prefs-bridge';
 
 /**
@@ -76,6 +77,14 @@ export interface TruckBuddyApi {
    * device phone app via `openCall` instead.
    */
   sendDispatch(message: Dispatch): Promise<Dispatch>;
+
+  /* ------------- Contract-based compliance (major-company work) ------------- */
+
+  /** GET /drivers/{driverId}/compliance — the driver/carrier's own file. */
+  getCompliance(): Promise<ComplianceDossier>;
+
+  /** GET /delivery-contracts — the major-company contracts available to run. */
+  getDeliveryContracts(): Promise<DeliveryContract[]>;
 }
 
 export interface CreateDocumentResult {
@@ -93,7 +102,7 @@ interface DispatchConfig {
 }
 
 function getDispatchConfig(): DispatchConfig {
-  const extra = Constants.expo?.extra as Record<string, string> | undefined;
+  const extra = Constants.expoConfig?.extra as Record<string, string> | undefined;
   const base = extra?.supabaseUrl?.replace(/\/$/, '') ?? '';
   const path = extra?.dispatchFunctionPath ?? '/functions/v1/dispatch-send';
   return {
@@ -159,7 +168,9 @@ async function sendViaResend(
 
 async function mockSend(message: Dispatch): Promise<Dispatch> {
   await new Promise((r) => setTimeout(r, 600));
-  return { ...message, status: 'sent', at: new Date().toISOString() };
+  // Honest demo status: the message was composed and logged, but nothing was
+  // transmitted. UI must not present this as "sent".
+  return { ...message, status: 'demo', at: new Date().toISOString() };
 }
 
 // ---------------------------------------------------------------------------
@@ -199,7 +210,8 @@ export class MockTruckBuddyApi implements TruckBuddyApi {
     if (opts.stopId === 'stop_acme') {
       fields.bol_number = 'BOL-882114';
     }
-    return makeMockDocument(opts.stopId, opts.type, fields);
+    const session = await this.sessionProvider().catch(() => null);
+    return makeMockDocument(opts.stopId, opts.type, fields, session?.driver.id);
   }
 
   async getContacts(): Promise<Contact[]> {
@@ -252,5 +264,15 @@ export class MockTruckBuddyApi implements TruckBuddyApi {
       }
     }
     return mockSend(message);
+  }
+
+  async getCompliance(): Promise<ComplianceDossier> {
+    const { buildDossier } = await import('@/domain/contract');
+    return buildDossier();
+  }
+
+  async getDeliveryContracts(): Promise<DeliveryContract[]> {
+    const { DELIVERY_CONTRACTS } = await import('@/domain/contract');
+    return DELIVERY_CONTRACTS.map((c) => ({ ...c }));
   }
 }

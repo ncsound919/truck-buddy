@@ -36,6 +36,7 @@ export function ScanScreen() {
   const [ocrBusy, setOcrBusy] = useState(false);
   const [permission, requestPermission] = useCameraPermissions({ get: true });
   const camRef = useRef<CameraView | null>(null);
+  const cancelledRef = useRef(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
 
   if (!currentStop) return null;
@@ -63,10 +64,20 @@ export function ScanScreen() {
     try {
       const photo = await cam.takePictureAsync({ quality: 0.7 });
       const uri = photo.uri;
+      if (cancelledRef.current) return;
       setPhotoUri(uri);
       const lines = await recognizeImageText(uri);
+      // The driver may have tapped Cancel (unmounting this screen) mid-capture.
+      if (cancelledRef.current) return;
       if (lines && lines.length) {
-        const doc = buildOcrDocument(type, currentStop.id, currentStop.name, uri, lines);
+        const doc = buildOcrDocument(
+          type,
+          currentStop.id,
+          currentStop.name,
+          uri,
+          lines,
+          state.session?.driver.id,
+        );
         commitCapture(doc);
       } else {
         announce('No text found. Bring the document closer and try again.');
@@ -77,7 +88,7 @@ export function ScanScreen() {
       haptic('reject');
       announce('Camera capture failed.');
     } finally {
-      setOcrBusy(false);
+      if (!cancelledRef.current) setOcrBusy(false);
     }
   };
 
@@ -94,7 +105,14 @@ export function ScanScreen() {
       <View style={styles.body}>
         <View style={styles.headerRow}>
           <Text style={[styles.title, { color: dark ? '#FFFFFF' : '#101828' }]}>Scan {type}</Text>
-          <Pressable onPress={cancelScan} style={({ pressed }) => pressed && { opacity: 0.6 }}>
+          <Pressable
+            onPress={() => {
+              cancelledRef.current = true;
+              cancelScan();
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel scan"
+            style={({ pressed }) => pressed && { opacity: 0.6 }}>
             <Text style={styles.cancel}>Cancel</Text>
           </Pressable>
         </View>
@@ -124,10 +142,10 @@ export function ScanScreen() {
                 <Text style={styles.cameraHint}>Camera permission needed</Text>
                 <Text style={styles.cameraSub}>Allow camera to scan paperwork live</Text>
                 <View style={styles.permissionActions}>
-                  <Pressable style={styles.permBtn} onPress={() => void requestPermission()}>
+                  <Pressable style={styles.permBtn} onPress={() => void requestPermission()} accessibilityRole="button">
                     <Text style={styles.permBtnText}>Allow</Text>
                   </Pressable>
-                  <Pressable style={styles.permGhost} onPress={switchToDemo}>
+                  <Pressable style={styles.permGhost} onPress={switchToDemo} accessibilityRole="button">
                     <Text style={styles.permGhostText}>Use demo capture</Text>
                   </Pressable>
                 </View>
@@ -153,7 +171,16 @@ export function ScanScreen() {
               <Image source={{ uri: photoUri }} style={styles.preview} resizeMode="cover" />
             ) : null}
             <View style={styles.verifiedCard}>
-              <Pill dot="success" label={live ? 'Verified · on-device OCR' : 'Verified · demo OCR'} />
+              <Pill
+                dot={verified.status === 'verified' ? 'success' : 'accent'}
+                label={
+                  verified.status === 'verified'
+                    ? live
+                      ? 'Verified · on-device OCR'
+                      : 'Verified · demo OCR'
+                    : 'Needs review · check fields'
+                }
+              />
               <Text style={[styles.bolNumber, { color: dark ? '#FFFFFF' : '#101828' }]}>
                 {verified.parsedFields.bol_number}
               </Text>
@@ -169,15 +196,16 @@ export function ScanScreen() {
               <View style={styles.verifiedActions}>
                 <BigButton label="Attach & Complete Stop" tone="success" onPress={completeStop} />
                 <View style={styles.aidRow}>
-                  <Text style={styles.aidLink} onPress={() => readBackDoc(verified)}>
+                  <Text style={styles.aidLink} accessibilityRole="button" onPress={() => readBackDoc(verified)}>
                     🔊 Read it back
                   </Text>
-                  <Text style={styles.aidLink} onPress={() => void sendDocEmail(verified)}>
+                  <Text style={styles.aidLink} accessibilityRole="button" onPress={() => void sendDocEmail(verified)}>
                     📧 Email to {forwardTarget?.label ?? 'dispatch'}
                   </Text>
                 </View>
                 <Text
                   style={styles.attachAnother}
+                  accessibilityRole="button"
                   onPress={() => {
                     haptic('selection');
                     setPhotoUri(null);
@@ -194,6 +222,8 @@ export function ScanScreen() {
               {DOC_TYPES.map((t) => (
                 <Pressable
                   key={t}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: type === t }}
                   onPress={() => {
                     setType(t);
                     haptic('selection');
@@ -216,7 +246,7 @@ export function ScanScreen() {
             ) : (
               <View style={styles.captureBlock}>
                 <BigButton
-                  label={live ? 'Capture Document' : 'Capture Document'}
+                  label="Capture Document"
                   sublabel={
                     live
                       ? 'Thumb tap to snap · real OCR'
@@ -227,7 +257,7 @@ export function ScanScreen() {
                   onPress={live ? () => void doCaptureLive() : doCaptureDemo}
                 />
                 {live && (
-                  <Text style={styles.demoLink} onPress={switchToDemo}>
+                  <Text style={styles.demoLink} accessibilityRole="button" onPress={switchToDemo}>
                     OCR not working here? Use demo capture →
                   </Text>
                 )}

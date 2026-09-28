@@ -6,11 +6,16 @@ describe('ocr parsers (pure field extraction)', () => {
       'BOL: 882114\nSHIPPER: Raleigh Freight Co.\nCONSIGNEE: ACME Distribution\nWEIGHT: 18,750 LBS\n2026-09-04',
       'Fallback',
     );
-    expect(fields.bol_number).toContain('BOL');
+    expect(fields.bol_number).toBe('882114');
     expect(fields.shipper).toContain('Raleigh');
     expect(fields.consignee).toContain('ACME');
     expect(fields.weight).toBe(18750);
     expect(fields.date).toContain('2026-09-04');
+  });
+
+  it('does not mistake an ordinary word for a BOL number', () => {
+    const fields = parseBolFields('blahblah cargo manifest', 'Fallback');
+    expect(fields.bol_number).toBe('BOL-unknown');
   });
 
   it('falls back to the consignee fallback when absent', () => {

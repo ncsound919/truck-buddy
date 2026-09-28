@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { BigButton, Kicker, StatCard } from '@/components/ui';
+import { BigButton, Kicker, SampleTag, StatCard } from '@/components/ui';
 import { Brand, useIsDark } from '@/constants/brand';
 import { Spacing } from '@/constants/theme';
 import { useFlow } from '@/store/flow';
@@ -62,7 +62,7 @@ export function SummaryScreen() {
           onPress={() => {
             if (health) {
               haptic(healthOk ? 'selection' : 'alert');
-              announce(health);
+              announce(`Sample diagnostics. ${health}`);
             }
           }}
           style={({ pressed }) => [
@@ -76,6 +76,9 @@ export function SummaryScreen() {
             <Text style={[styles.healthValue, { color: healthOk ? (dark ? '#FFFFFF' : '#101828') : Brand.danger }]}>
               {health ?? 'Loading…'}
             </Text>
+            <View style={{ marginTop: 4 }}>
+              <SampleTag label="Sample telemetry" />
+            </View>
             <Text style={styles.healthTap}>Tap to hear again</Text>
           </View>
         </Pressable>
@@ -95,14 +98,22 @@ export function SummaryScreen() {
 export function EndedScreen() {
   const flow = useFlow();
   const dark = useIsDark();
+  const autoMode = flow.state.prefs?.autoMode ?? false;
+  const eodOn = flow.state.prefs?.sendEodReport ?? false;
   const eod = flow.state.aidLog.find((d) => d.kind === 'email' && d.subject === 'End-of-day report');
-  const eodLine = !flow.state.prefs?.sendEodReport
-    ? 'End-of-day report is off. Turn it on in My tools to email fleet.'
-    : eod == null
-      ? 'Shift logged on this device.'
-      : eod.status === 'sent'
-        ? 'End-of-day report emailed to the fleet. Drive safe.'
-        : 'End-of-day report queued — it sends when you’re back online. Drive safe.';
+  const eodLine = !autoMode
+    ? 'Auto-pilot is off, so no end-of-day report was sent.'
+    : !eodOn
+      ? 'End-of-day report is off. Turn it on in My tools to email fleet.'
+      : eod == null
+        ? 'Shift logged on this device.'
+        : eod.status === 'sent'
+          ? 'End-of-day report emailed to the fleet. Drive safe.'
+          : eod.status === 'demo'
+            ? 'End-of-day report drafted — demo mode, nothing was sent. Drive safe.'
+            : eod.status === 'failed'
+              ? 'End-of-day report could not be sent. Drive safe.'
+              : 'End-of-day report queued — it sends when you’re back online. Drive safe.';
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <View style={[styles.body, styles.centered]}>
@@ -146,7 +157,7 @@ const styles = StyleSheet.create({
   healthTextWrap: { flex: 1, gap: 2 },
   healthLabel: { fontSize: 12, fontWeight: '800', letterSpacing: 1.1, textTransform: 'uppercase', color: Brand.accent },
   healthValue: { fontSize: 16, fontWeight: '800', lineHeight: 22 },
-  healthTap: { fontSize: 12, fontWeight: '600', color: '#8A94A6' },
+  healthTap: { fontSize: 12, fontWeight: '600', color: '#5B6575' },
   vehicleLine: { fontSize: 13, fontWeight: '700', textAlign: 'center' },
   doneRing: {
     width: 96, height: 96, borderRadius: 48, alignSelf: 'center',

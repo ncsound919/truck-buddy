@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import * as Location from 'expo-location';
 
 /**
@@ -40,17 +41,26 @@ export interface GeofenceResult {
  * `null` when GPS is not available (web, or the permission was denied).
  */
 export async function geofence(target: GeoPoint, radiusMeters: number): Promise<GeofenceResult | null> {
-  const granted = await Location.requestForegroundPermissionsAsync();
+  if (Platform.OS === 'web') return null;
+
+  let granted: Awaited<ReturnType<typeof Location.requestForegroundPermissionsAsync>>;
+  try {
+    granted = await Location.requestForegroundPermissionsAsync();
+  } catch {
+    return { permission: 'denied', start: () => ({ stop: () => {} }) };
+  }
   if (granted.status !== 'granted') {
     return { permission: 'denied', start: () => ({ stop: () => {} }) };
   }
 
   const start: GeofenceResult['start'] = (onFix, onEnter) => {
     let entered = false;
+    let removed = false;
     let sub: Location.LocationSubscription | null = null;
     Location.watchPositionAsync(
       { accuracy: Location.Accuracy.Balanced, distanceInterval: 10, timeInterval: 2000 },
       (loc) => {
+        if (removed) return;
         const meters = distanceMeters(
           { lat: loc.coords.latitude, lng: loc.coords.longitude },
           target,
@@ -61,10 +71,22 @@ export async function geofence(target: GeoPoint, radiusMeters: number): Promise<
           onEnter();
         }
       },
-    ).then((s) => {
-      sub = s;
-    });
-    return { stop: () => sub?.remove() };
+    )
+      .then((s) => {
+        // stop() may have run before the watcher resolved — honour it.
+        if (removed) s.remove();
+        else sub = s;
+      })
+      .catch(() => {
+        /* location services off / revoked — degrade silently */
+      });
+    return {
+      stop: () => {
+        removed = true;
+        sub?.remove();
+        sub = null;
+      },
+    };
   };
 
   return { permission: 'granted', start };

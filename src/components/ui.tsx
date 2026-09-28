@@ -132,7 +132,11 @@ export function Pill({
     </View>
   );
   return onPress ? (
-    <Pressable onPress={onPress} style={({ pressed }) => pressed && pillStyles.pressed}>
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={({ pressed }) => pressed && pillStyles.pressed}>
       {content}
     </Pressable>
   ) : (
@@ -188,4 +192,33 @@ const statStyles = StyleSheet.create({
   cardDark: { backgroundColor: '#16233A' },
   value: { fontSize: 30, fontWeight: '800', lineHeight: 36 },
   label: { fontSize: 13, fontWeight: '600' },
+});
+
+/**
+ * Visible marker that a value is canned demo data, not a live feed. Applied to
+ * truck-health and route estimates until a real telematics/ELD feed is wired —
+ * a driver must never mistake sample telemetry for their own truck.
+ */
+export function SampleTag({ label = 'Sample data' }: { label?: string }) {
+  const dark = useIsDark();
+  return (
+    <View style={[sampleStyles.bg, dark && sampleStyles.bgDark]}>
+      <Text style={[sampleStyles.text, dark && sampleStyles.textDark]}>{label}</Text>
+    </View>
+  );
+}
+
+const sampleStyles = StyleSheet.create({
+  bg: {
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    backgroundColor: '#FBEFD6',
+    borderWidth: 1,
+    borderColor: '#E7C98A',
+  },
+  bgDark: { backgroundColor: '#3A2E14', borderColor: '#6B541F' },
+  text: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.7, textTransform: 'uppercase', color: '#8A5B00' },
+  textDark: { color: '#E7C98A' },
 });
