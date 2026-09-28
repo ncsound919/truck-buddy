@@ -110,6 +110,8 @@ export function ScanScreen() {
               cancelledRef.current = true;
               cancelScan();
             }}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel scan"
             style={({ pressed }) => pressed && { opacity: 0.6 }}>
             <Text style={styles.cancel}>Cancel</Text>
           </Pressable>
@@ -140,10 +142,10 @@ export function ScanScreen() {
                 <Text style={styles.cameraHint}>Camera permission needed</Text>
                 <Text style={styles.cameraSub}>Allow camera to scan paperwork live</Text>
                 <View style={styles.permissionActions}>
-                  <Pressable style={styles.permBtn} onPress={() => void requestPermission()}>
+                  <Pressable style={styles.permBtn} onPress={() => void requestPermission()} accessibilityRole="button">
                     <Text style={styles.permBtnText}>Allow</Text>
                   </Pressable>
-                  <Pressable style={styles.permGhost} onPress={switchToDemo}>
+                  <Pressable style={styles.permGhost} onPress={switchToDemo} accessibilityRole="button">
                     <Text style={styles.permGhostText}>Use demo capture</Text>
                   </Pressable>
                 </View>
@@ -194,15 +196,16 @@ export function ScanScreen() {
               <View style={styles.verifiedActions}>
                 <BigButton label="Attach & Complete Stop" tone="success" onPress={completeStop} />
                 <View style={styles.aidRow}>
-                  <Text style={styles.aidLink} onPress={() => readBackDoc(verified)}>
+                  <Text style={styles.aidLink} accessibilityRole="button" onPress={() => readBackDoc(verified)}>
                     🔊 Read it back
                   </Text>
-                  <Text style={styles.aidLink} onPress={() => void sendDocEmail(verified)}>
+                  <Text style={styles.aidLink} accessibilityRole="button" onPress={() => void sendDocEmail(verified)}>
                     📧 Email to {forwardTarget?.label ?? 'dispatch'}
                   </Text>
                 </View>
                 <Text
                   style={styles.attachAnother}
+                  accessibilityRole="button"
                   onPress={() => {
                     haptic('selection');
                     setPhotoUri(null);
@@ -254,7 +257,7 @@ export function ScanScreen() {
                   onPress={live ? () => void doCaptureLive() : doCaptureDemo}
                 />
                 {live && (
-                  <Text style={styles.demoLink} onPress={switchToDemo}>
+                  <Text style={styles.demoLink} accessibilityRole="button" onPress={switchToDemo}>
                     OCR not working here? Use demo capture →
                   </Text>
                 )}

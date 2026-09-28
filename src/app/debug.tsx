@@ -53,7 +53,7 @@ export default function DebugScreen() {
 
         <BigButton label="Reset demo day" tone="secondary" onPress={flow.reset} />
 
-        <Pressable onPress={() => router.back()} style={({ pressed }) => pressed && { opacity: 0.6 }}>
+        <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} accessibilityRole="button" style={({ pressed }) => pressed && { opacity: 0.6 }}>
           <Text style={styles.back}>← Back to driver flow</Text>
         </Pressable>
       </ScrollView>

@@ -62,10 +62,15 @@ export default function ProfileScreen() {
           onPress={async () => {
             if (!canSave) return;
             await setOperatingProfile(active);
-            router.back();
+            if (router.canGoBack()) router.back();
+            else router.replace('/');
           }}
         />
-        <Pressable onPress={() => router.back()} style={styles.cancelWrap}>
+        <Pressable
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
+          accessibilityRole="button"
+          accessibilityLabel="Cancel"
+          style={styles.cancelWrap}>
           <Text style={styles.cancel}>Cancel</Text>
         </Pressable>
       </View>

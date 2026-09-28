@@ -123,13 +123,13 @@ export function IdleScreen() {
 
         <View style={styles.hintRow}>
           <Text style={styles.hint}>Swipe up to start · Hold anywhere for voice</Text>
-          <Pressable onPress={() => setToolsOpen(true)}>
+          <Pressable onPress={() => setToolsOpen(true)} accessibilityRole="button" accessibilityLabel="Open My tools">
             <Text style={styles.debugLink}>My tools · memory &amp; auto-help</Text>
           </Pressable>
-          <Pressable onPress={() => router.push('/compliance')}>
+          <Pressable onPress={() => router.push('/compliance')} accessibilityRole="link" accessibilityLabel="Open the compliance audit record">
             <Text style={styles.debugLink}>Compliance · HOS, DVIR &amp; audit record</Text>
           </Pressable>
-          <Pressable onPress={() => router.push('/debug')}>
+          <Pressable onPress={() => router.push('/debug')} accessibilityRole="link" accessibilityLabel="Open the developer state inspector">
             <Text style={styles.debugLink}>Developer · inspect live state</Text>
           </Pressable>
         </View>
@@ -408,7 +408,7 @@ const styles = StyleSheet.create({
   routeTitle: { fontSize: 22, fontWeight: '800', lineHeight: 28 },
   vehicleMeta: { fontSize: 14, fontWeight: '600', color: '#5B6575', lineHeight: 20 },
   hintRow: { alignItems: 'center', gap: Spacing.three },
-  hint: { fontSize: 13, fontWeight: '600', color: '#8A94A6', textAlign: 'center' },
+  hint: { fontSize: 13, fontWeight: '600', color: '#5B6575', textAlign: 'center' },
   debugLink: { fontSize: 13, fontWeight: '700', color: Brand.accent, textAlign: 'center' },
   backdrop: { flex: 1, backgroundColor: 'rgba(2,8,18,0.6)', justifyContent: 'flex-end' },
   sheet: {

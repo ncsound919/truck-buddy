@@ -245,6 +245,7 @@ function reducer(state: FlowState, action: FlowAction): FlowState {
         aidLog: draft.aidLog,
         dossier: draft.dossier,
         contracts: draft.contracts,
+        obdSample: draft.obdSample,
         booted: true,
         session: draft.session,
         route: makeDemoRoute(),

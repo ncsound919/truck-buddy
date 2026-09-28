@@ -162,7 +162,10 @@ export function ArrivedScreen() {
           <BigButton label="Complete Stop" onPress={completeStop} />
           <BigButton label="Scan Paperwork" tone="secondary" onPress={openScan} />
           <BigButton label="Driver Aids" tone="secondary" onPress={() => setAidsOpen(true)} />
-          <Text style={[styles.backOnRoad, { color: dark ? '#8FA1BB' : '#5B6575' }]} onPress={backOnRoad}>
+          <Text
+            style={[styles.backOnRoad, { color: dark ? '#8FA1BB' : '#5B6575' }]}
+            accessibilityRole="button"
+            onPress={backOnRoad}>
             Left the geofence? Back on road →
           </Text>
         </View>
@@ -229,7 +232,7 @@ export function ArrivedScreen() {
               </View>
             </ScrollView>
 
-            <Pressable onPress={close} style={styles.closeBtn}>
+            <Pressable onPress={close} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close driver aids">
               <Text style={styles.closeText}>Close</Text>
             </Pressable>
           </Pressable>

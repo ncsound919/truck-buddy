@@ -157,7 +157,7 @@ const styles = StyleSheet.create({
   healthTextWrap: { flex: 1, gap: 2 },
   healthLabel: { fontSize: 12, fontWeight: '800', letterSpacing: 1.1, textTransform: 'uppercase', color: Brand.accent },
   healthValue: { fontSize: 16, fontWeight: '800', lineHeight: 22 },
-  healthTap: { fontSize: 12, fontWeight: '600', color: '#8A94A6' },
+  healthTap: { fontSize: 12, fontWeight: '600', color: '#5B6575' },
   vehicleLine: { fontSize: 13, fontWeight: '700', textAlign: 'center' },
   doneRing: {
     width: 96, height: 96, borderRadius: 48, alignSelf: 'center',

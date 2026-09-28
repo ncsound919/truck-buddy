@@ -78,7 +78,7 @@ export default function ComplianceScreen() {
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
         <View style={styles.headRow}>
           <Kicker text="Compliance" />
-          <Pressable onPress={() => router.back()}>
+          <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} accessibilityRole="button" accessibilityLabel="Done">
             <Text style={styles.close}>Done</Text>
           </Pressable>
         </View>
