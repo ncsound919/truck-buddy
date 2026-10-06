@@ -163,9 +163,9 @@ export async function buildDemoSession(): Promise<TodaySession> {
   return {
     driver: {
       id: DEMO_DRIVER_ID,
-      name: 'Terrence',
+      name: 'Driver',
       phone: '+1 (919) 555-0134',
-      email: 'terrence@truckbuddy.online',
+      email: '',
       membershipTier: 'pro',
     },
     vehicle: DEMO_VEHICLE,

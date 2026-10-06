@@ -231,10 +231,10 @@ export function buildDossier(): ComplianceDossier {
     verdict: dossierVerdict(items),
     items,
     docsOnFile: [
-      { key: 'coc', label: 'Certificate of insurance (COI)', issuer: 'Brooks Logistics LLC · current policy', expires: daysFromNow(14) },
-      { key: 'authority', label: 'MC/DOT authority letter', issuer: 'FMCSA · MC-482119' },
-      { key: 'w9', label: 'W-9', issuer: 'IRS · Brooks Logistics LLC' },
-      { key: 'rate_agreement', label: 'Blank rate agreement', issuer: 'Brooks Logistics LLC' },
+      { key: 'coc', label: 'Certificate of insurance (COI)', issuer: 'Your insurer · current policy', expires: daysFromNow(14) },
+      { key: 'authority', label: 'MC/DOT authority letter', issuer: 'FMCSA' },
+      { key: 'w9', label: 'W-9', issuer: 'IRS' },
+      { key: 'rate_agreement', label: 'Blank rate agreement', issuer: 'Your company' },
     ],
   };
 }
