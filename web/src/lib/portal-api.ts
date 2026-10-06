@@ -1,17 +1,17 @@
 import type { DataSeam } from '@/lib/domain';
+import { EmptyPortalApi } from '@/lib/empty-api';
 import { LivePortalApi } from '@/lib/live-api';
-import { portalApi as mockApi } from '@/lib/mock-api';
 import { getSessionUser, getSupabaseServer } from '@/lib/supabase/server';
 
 /**
  * Request-scoped portal seam.
  *
- * When the shared Supabase project is configured (every real deployment) this
- * returns the live, RLS-scoped implementation bound to the caller's session.
- * Only an unconfigured or anonymous request falls back to the in-memory demo
- * seam — so a production misconfiguration surfaces as demo data rather than
- * silently leaking another user's rows.
+ * A signed-in request always gets the live, RLS-scoped implementation bound to
+ * the caller's session. Anonymous or unconfigured requests get an honest EMPTY
+ * seam — never the old in-memory demo fixtures, which is what used to surface as
+ * a fake business and a fake driver name to real users.
  */
+
 export function supabaseConfigured(): boolean {
   return Boolean(
     process.env.NEXT_PUBLIC_SUPABASE_URL &&
@@ -20,21 +20,20 @@ export function supabaseConfigured(): boolean {
 }
 
 /**
- * Feature gate for the real loads / documents / dispatch storage.
- *
- * Off by default so this code can ship before the tables exist — otherwise the
- * portal would 5xx the moment it ran a query against a missing table. Turn it on
- * (Vercel → project env `PORTAL_LIVE_SLICE=1`) only after migration
- * `20260928130000_portal_loads_documents_dispatch.sql` is applied and verified.
+ * The live loads / documents / dispatch tables are applied (migration
+ * 20260928130000), so the seam is always live when a user is present. Kept as a
+ * named export for older callers.
  */
 export function liveSliceEnabled(): boolean {
-  return process.env.PORTAL_LIVE_SLICE === '1';
+  return true;
 }
 
+const empty = new EmptyPortalApi();
+
 export async function getPortalApi(): Promise<DataSeam> {
-  if (!supabaseConfigured() || !liveSliceEnabled()) return mockApi;
+  if (!supabaseConfigured()) return empty;
   const user = await getSessionUser();
-  if (!user) return mockApi;
+  if (!user) return empty;
   const sb = await getSupabaseServer();
-  return new LivePortalApi(sb, { id: user.id, name: user.name });
+  return new LivePortalApi(sb, { id: user.id, name: user.name, email: user.email });
 }

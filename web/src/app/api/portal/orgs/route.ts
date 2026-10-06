@@ -1,14 +1,15 @@
 import { NextResponse } from 'next/server';
 
-import { portalApi } from '@/lib/mock-api';
+import { getPortalApi } from '@/lib/portal-api';
 import { requirePortalUser } from '@/lib/portal-guard';
 
 export async function GET() {
   const denied = await requirePortalUser();
   if (denied) return denied;
+  const api = await getPortalApi();
   const [orgs, membership] = await Promise.all([
-    portalApi.getOrganizations(),
-    portalApi.getMembership(),
+    api.getOrganizations(),
+    api.getMembership(),
   ]);
   return NextResponse.json({ orgs, membership });
 }
@@ -24,7 +25,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'bad_request' }, { status: 400 });
   }
   try {
-    const membership = await portalApi.switchOrganization(orgId);
+    const api = await getPortalApi();
+    const membership = await api.switchOrganization(orgId);
     return NextResponse.json({ membership });
   } catch {
     return NextResponse.json({ error: 'org_membership_not_found' }, { status: 404 });

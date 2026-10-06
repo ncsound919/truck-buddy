@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { portalApi } from '@/lib/mock-api';
+import { getPortalApi } from '@/lib/portal-api';
 import { requirePortalUser } from '@/lib/portal-guard';
 
 /**
@@ -10,6 +10,7 @@ import { requirePortalUser } from '@/lib/portal-guard';
 export async function GET() {
   const denied = await requirePortalUser();
   if (denied) return denied;
-  const dossier = await portalApi.getCompliance();
+  const api = await getPortalApi();
+  const dossier = await api.getCompliance();
   return NextResponse.json({ dossier });
 }

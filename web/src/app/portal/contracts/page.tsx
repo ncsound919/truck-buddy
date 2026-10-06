@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/feedback';
 import { ContractIcon, ShieldIcon } from '@/components/icons';
 import { packetDraft } from '@/lib/contracts';
-import { portalApi } from '@/lib/mock-api';
+import { getPortalApi } from '@/lib/portal-api';
 import { runsOwnAuthority } from '@/lib/perspective';
 import { vettingLabel } from '@/lib/vetting';
 import type { LeadStage } from '@/lib/domain';
@@ -24,12 +24,13 @@ const STAGE_BADGE: Record<LeadStage, { label: string; tone: 'accent' | 'success'
 };
 
 export default async function ContractsPage() {
+  const api = await getPortalApi();
   const [leads, rateContracts, receipts, dossier, profile] = await Promise.all([
-    portalApi.getContractLeads(),
-    portalApi.getRateContracts(),
-    portalApi.getContractReceipts(),
-    portalApi.getCompliance(),
-    portalApi.getOperatingProfile(),
+    api.getContractLeads(),
+    api.getRateContracts(),
+    api.getContractReceipts(),
+    api.getCompliance(),
+    api.getOperatingProfile(),
   ]);
 
   if (!runsOwnAuthority(profile)) {

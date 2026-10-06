@@ -4,7 +4,7 @@ import { PageTitle, SectionCard } from '@/components/portal/primitives';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/feedback';
 import { CheckIcon, DocIcon, ScanIcon } from '@/components/icons';
-import { portalApi } from '@/lib/mock-api';
+import { getPortalApi } from '@/lib/portal-api';
 import type { DocKind } from '@/lib/domain';
 import { cn } from '@/lib/cn';
 
@@ -18,7 +18,8 @@ const DESK: { key: string; kind: DocKind; label: string; needed: string }[] = [
 export const dynamic = 'force-dynamic';
 
 export default async function PaperworkPage() {
-  const [loads, docs] = await Promise.all([portalApi.getLoads(), portalApi.getDocuments()]);
+  const api = await getPortalApi();
+  const [loads, docs] = await Promise.all([api.getLoads(), api.getDocuments()]);
   const active = loads.filter((l) => l.status !== 'delivered');
 
   const have = (loadRef: string, kind: DocKind) =>

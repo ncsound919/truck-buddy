@@ -1,7 +1,7 @@
 import { HealthPanel, PageTitle, SectionCard } from '@/components/portal/primitives';
 import { Badge } from '@/components/ui/badge';
 import { Stat } from '@/components/ui/card';
-import { portalApi } from '@/lib/mock-api';
+import { getPortalApi } from '@/lib/portal-api';
 import { predictMaintenance } from '@/lib/predict';
 import { CopilotActions } from './copilot-actions';
 import { cn } from '@/lib/cn';
@@ -9,7 +9,8 @@ import { cn } from '@/lib/cn';
 export const dynamic = 'force-dynamic';
 
 export default async function VehiclePage() {
-  const v = await portalApi.getVehicleDetail();
+  const api = await getPortalApi();
+  const v = await api.getVehicleDetail();
   const risks = predictMaintenance(v);
   const high = risks.filter((r) => r.severity === 'high').length;
 

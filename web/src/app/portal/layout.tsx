@@ -44,15 +44,14 @@ interface NavItem {
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const [isManager, setIsManager] = useState(false);
+  const [me, setMe] = useState<{ name: string; email: string | null; admin: boolean } | null>(null);
 
   useEffect(() => {
     let live = true;
-    fetch('/api/portal/orgs')
-      .then((r) => r.json())
-      .then((d: { membership: { member: { role?: string } } }) => {
-        const role = d.membership?.member?.role;
-        if (live) setIsManager(role === 'owner' || role === 'admin');
+    fetch('/api/portal/me')
+      .then((r) => (r.ok ? r.json() : { user: null }))
+      .then((d: { user: { name: string; email: string | null; admin: boolean } | null }) => {
+        if (live) setMe(d.user);
       })
       .catch(() => {});
     return () => {
@@ -60,7 +59,15 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     };
   }, []);
 
-  const nav = isManager ? [...BASE_NAV, ADMIN_NAV] : BASE_NAV;
+  const nav = me?.admin ? [...BASE_NAV, ADMIN_NAV] : BASE_NAV;
+  const displayName = me?.name || me?.email || 'Signed in';
+  const initials = displayName
+    .split(/[\s.@]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase() ?? '')
+    .join('');
+
 
   return (
     <div className="min-h-screen bg-bg-alt">
@@ -80,13 +87,14 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
             </button>
             <div className="flex items-center gap-2.5 rounded-lg border border-line bg-bg-alt py-1 pl-1 pr-3">
               <span className="flex h-8 w-8 items-center justify-center rounded-md bg-surface text-xs font-black text-white">
-                TB
+                {initials || '··'}
               </span>
               <div className="hidden leading-tight md:block">
-                <div className="text-sm font-bold text-ink">Terrence Brooks</div>
-                <div className="text-[11px] text-faint">Pro Â· MC-482119</div>
+                <div className="max-w-[180px] truncate text-sm font-bold text-ink">{displayName}</div>
+                <div className="text-[11px] text-faint">{me?.admin ? 'Owner · admin' : me?.email ?? ''}</div>
               </div>
             </div>
+
           </div>
         </div>
         <nav className="flex gap-1 overflow-x-auto px-4 pb-2 lg:hidden">

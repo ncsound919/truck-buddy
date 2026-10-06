@@ -1,19 +1,21 @@
 import { NextResponse } from 'next/server';
 
-import { portalApi } from '@/lib/mock-api';
+import { getPortalApi } from '@/lib/portal-api';
 import { requirePortalUser } from '@/lib/portal-guard';
 import { getSessionUser, getSupabaseServer } from '@/lib/supabase/server';
+import type { OperatingProfile } from '@/lib/domain';
 
 /**
  * Portal operating profile — persisted in the shared `public.profiles.metadata`
  * bag so the cab app, web portal and social app all read the same driver
- * identity (`auth.users.id`). Falls back to the mock default until a driver
- * saves one.
+ * identity (`auth.users.id`). A driver with no saved profile gets the unset
+ * default (never demo data).
  */
 const KEY = 'operatingProfile';
 
-async function defaultProfile() {
-  return portalApi.getOperatingProfile();
+async function defaultProfile(): Promise<OperatingProfile> {
+  const api = await getPortalApi();
+  return api.getOperatingProfile();
 }
 
 async function readProfile(userId: string) {
@@ -37,7 +39,7 @@ export async function POST(req: Request) {
   const user = await getSessionUser().catch(() => null);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  let profile: Parameters<typeof portalApi.setOperatingProfile>[0];
+  let profile: OperatingProfile;
   try {
     const body = (await req.json()) as { profile?: typeof profile };
     if (!body.profile?.role || !body.profile?.equipment || !body.profile?.authority) {

@@ -13,6 +13,7 @@ import type {
   LoadStatus,
   OperatingProfile,
   Organization,
+  OrgKind,
   OrgMember,
   OrgMembership,
   OrgRole,
@@ -20,18 +21,26 @@ import type {
   PortalToday,
   RateContract,
   TruckDoc,
+  TruckHealth,
   VehicleDetail,
 } from '@/lib/domain';
-import { portalApi as mockApi } from '@/lib/mock-api';
 
 /**
- * Live portal seam for the loads / documents / dispatch slice.
+ * Live portal seam.
  *
- * Every method here hits the shared Supabase project under the request's own
- * session, so RLS enforces per-user isolation. Surfaces not yet migrated
- * (vehicle, organizations, compliance, contracts) delegate to the mock seam and
- * are labelled as demo in their own pages.
+ * Every method hits the shared Supabase project under the request's own session,
+ * so RLS enforces per-user isolation. There is NO demo/fabricated fallback: a
+ * surface with no data yet returns an honest empty value, and a surface with no
+ * backing table returns an empty result rather than invented rows.
  */
+
+/** Honest empty health snapshot (no telemetry connected yet). */
+export const EMPTY_HEALTH: TruckHealth = {
+  metrics: { coolantTempF: 0, batteryVoltage: 0, fuelPct: 0, rpm: 0 },
+  faultCodes: [],
+  updatedAt: '',
+};
+
 
 export interface LoadRow {
   id: string;
@@ -174,7 +183,7 @@ const UNSET_PROFILE: OperatingProfile = {
 export class LivePortalApi implements DataSeam {
   constructor(
     private readonly sb: SupabaseClient,
-    private readonly user: { id: string; name: string | null },
+    private readonly user: { id: string; name: string | null; email: string | null },
   ) {}
 
   /* ------------------------------- Loads ------------------------------- */
@@ -301,81 +310,233 @@ export class LivePortalApi implements DataSeam {
   /* ------------------------------- Today -------------------------------- */
 
   async getToday(): Promise<PortalToday> {
-    const [loads, documents, messages, demo] = await Promise.all([
+    const [loads, documents, messages, membership] = await Promise.all([
       this.getLoads(),
       this.getDocuments(),
       this.getMessages(),
-      mockApi.getToday(),
+      this.getMembership(),
     ]);
     const load = loads.find((l) => l.status === 'accepted' || l.status === 'in_progress') ?? loads[0];
+
+    // Real earnings: summed from this driver's own loads in the last 7 days.
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const week = loads.filter((l) => Date.parse(l.acceptedAt ?? '') >= weekAgo);
+    const weekGross = week.reduce((s, l) => s + (l.payout || 0), 0);
+    const weekMiles = week.reduce((s, l) => s + (l.distanceMi || 0), 0);
+
     return {
       load,
       nextStopLabel: load ? `${load.destination} · ${load.equipment}` : '',
-      driver: { ...demo.driver, name: this.user.name ?? demo.driver.name },
-      // Earnings + vehicle health are not part of this slice yet — kept from
-      // the demo seam and labelled as sample data in their UI.
-      earnings: demo.earnings,
-      health: demo.health,
+      driver: {
+        name: this.user.name ?? '',
+        tier: membership.org.tier === 'enterprise' ? 'fleet' : membership.org.tier === 'pro' ? 'pro' : 'basic',
+        truck: { plate: '', make: '', model: '', year: 0 },
+        mc: '',
+      },
+      earnings: {
+        weekGross,
+        weekMiles,
+        ratePerMile: weekMiles ? Math.round((weekGross / weekMiles) * 100) / 100 : 0,
+        thisLoadPayout: load?.payout ?? 0,
+      },
+      health: EMPTY_HEALTH,
       documents,
       messages,
     };
   }
 
-  /* ------------------- Not-yet-migrated surfaces (demo) ----------------- */
+  /* ------------------------------ Account ------------------------------- */
+
+  async getOrganizations(): Promise<Organization[]> {
+    const rows = await this.membershipRows();
+    return rows.map((r) => mapOrg(firstOrg(r)));
+  }
+
+  async getMembership(): Promise<OrgMembership> {
+    const rows = await this.membershipRows();
+    const preferred = await this.preferredOrgId();
+    const row = (preferred && rows.find((r) => r.org_id === preferred)) || rows[0];
+    if (!row) return this.personalMembership();
+    return {
+      org: mapOrg(firstOrg(row)),
+      member: {
+        userId: row.user_id,
+        name: this.user.name ?? '',
+        email: this.user.email ?? '',
+        role: row.role as OrgRole,
+        equipment: (row.equipment as EquipmentId) ?? 'dry_van',
+        joinedAt: row.joined_at ?? new Date(0).toISOString(),
+      },
+    };
+  }
+
+  async switchOrganization(orgId: string): Promise<OrgMembership> {
+    const { data } = await this.sb.from('profiles').select('metadata').eq('id', this.user.id).maybeSingle();
+    const metadata = {
+      ...((data?.metadata as Record<string, unknown> | null) ?? {}),
+      activeOrgId: orgId,
+    };
+    await this.sb.from('profiles').upsert({ id: this.user.id, metadata }, { onConflict: 'id' });
+    return this.getMembership();
+  }
+
+  async getOrgMembers(orgId: string): Promise<OrgMember[]> {
+    const { data, error } = await this.sb
+      .from('org_memberships')
+      .select('user_id,role,equipment,joined_at,is_active')
+      .eq('org_id', orgId)
+      .eq('is_active', true);
+    if (error) throw error;
+    const rows = (data ?? []) as { user_id: string; role: string; equipment: string; joined_at: string | null }[];
+    // Profiles carry only the columns the authenticated role may read (no email).
+    const ids = rows.map((r) => r.user_id);
+    const names = new Map<string, string>();
+    if (ids.length) {
+      const { data: profs } = await this.sb.from('profiles').select('id,full_name,username').in('id', ids);
+      for (const p of (profs ?? []) as { id: string; full_name: string | null; username: string | null }[]) {
+        names.set(p.id, p.full_name || p.username || '');
+      }
+    }
+    return rows.map((r) => ({
+      userId: r.user_id,
+      name: names.get(r.user_id) ?? (r.user_id === this.user.id ? this.user.name ?? '' : ''),
+      email: r.user_id === this.user.id ? this.user.email ?? '' : '',
+      role: r.role as OrgRole,
+      equipment: (r.equipment as EquipmentId) ?? 'dry_van',
+      joinedAt: r.joined_at ?? new Date(0).toISOString(),
+    }));
+  }
+
+  async inviteMember(): Promise<OrgMember> {
+    throw new Error('Invites are not enabled yet — a teammate joins by signing in with their email.');
+  }
+
+  async setMemberRole(memberId: string, role: OrgRole): Promise<OrgMember[]> {
+    const { data: row } = await this.sb.from('org_memberships').select('org_id').eq('id', memberId).maybeSingle();
+    const { error } = await this.sb.from('org_memberships').update({ role }).eq('id', memberId);
+    if (error) throw error;
+    return row?.org_id ? this.getOrgMembers(row.org_id) : [];
+  }
+
+  /* ---------------------- Surfaces with no backend yet ------------------- */
+  /* These return honest empties so the UI shows "nothing yet", never invented
+     rows. They become real as each backend slice lands. */
 
   getVehicleDetail(): Promise<VehicleDetail> {
-    return mockApi.getVehicleDetail();
-  }
-
-  getOrganizations(): Promise<Organization[]> {
-    return mockApi.getOrganizations();
-  }
-
-  getMembership(): Promise<OrgMembership> {
-    return mockApi.getMembership();
-  }
-
-  switchOrganization(orgId: string): Promise<OrgMembership> {
-    return mockApi.switchOrganization(orgId);
-  }
-
-  getOrgMembers(orgId: string): Promise<OrgMember[]> {
-    return mockApi.getOrgMembers(orgId);
-  }
-
-  inviteMember(input: { name: string; email: string; role: OrgRole; equipment: EquipmentId }): Promise<OrgMember> {
-    return mockApi.inviteMember(input);
-  }
-
-  setMemberRole(memberId: string, role: OrgRole): Promise<OrgMember[]> {
-    return mockApi.setMemberRole(memberId, role);
+    return Promise.resolve({
+      plate: '',
+      make: '',
+      model: '',
+      year: 0,
+      vin: '',
+      odometerMi: 0,
+      nextServiceMi: 0,
+      health: EMPTY_HEALTH,
+      faultHistory: [],
+      maintenance: [],
+      samples: [],
+    });
   }
 
   getCompliance(): Promise<ComplianceDossier> {
-    return mockApi.getCompliance();
+    return Promise.resolve({
+      asOf: new Date().toISOString(),
+      verdict: 'at_risk',
+      items: [],
+      docsOnFile: [],
+    });
   }
 
   getContractLeads(): Promise<ContractLead[]> {
-    return mockApi.getContractLeads();
+    return Promise.resolve([]);
   }
 
   getRateContracts(): Promise<RateContract[]> {
-    return mockApi.getRateContracts();
+    return Promise.resolve([]);
   }
 
   getContractReceipts(): Promise<ContractReceipt[]> {
-    return mockApi.getContractReceipts();
+    return Promise.resolve([]);
   }
 
-  sendPacket(leadId: string): Promise<PacketSendResult> {
-    return mockApi.sendPacket(leadId);
+  sendPacket(): Promise<PacketSendResult> {
+    return Promise.reject(new Error('Sending carrier packets is not enabled yet.'));
   }
 
-  sendForSignature(id: string): Promise<RateContract> {
-    return mockApi.sendForSignature(id);
+  sendForSignature(): Promise<RateContract> {
+    return Promise.reject(new Error('Sending contracts for signature is not enabled yet.'));
   }
 
-  signContract(id: string): Promise<RateContract> {
-    return mockApi.signContract(id);
+  signContract(): Promise<RateContract> {
+    return Promise.reject(new Error('Contract signing is not enabled yet.'));
+  }
+
+  /* ------------------------------- helpers ------------------------------ */
+
+  private async membershipRows(): Promise<MembershipRow[]> {
+    const { data, error } = await this.sb
+      .from('org_memberships')
+      .select('org_id,user_id,role,equipment,is_active,joined_at,organizations(id,name,kind,tier,active_seats,seat_limit)')
+      .eq('user_id', this.user.id)
+      .eq('is_active', true);
+    if (error) throw error;
+    return (data ?? []) as MembershipRow[];
+  }
+
+  private async preferredOrgId(): Promise<string | null> {
+    const { data } = await this.sb.from('profiles').select('metadata').eq('id', this.user.id).maybeSingle();
+    const meta = data?.metadata as { activeOrgId?: string } | null;
+    return meta?.activeOrgId ?? null;
+  }
+
+  private personalMembership(): OrgMembership {
+    const name = this.user.name || this.user.email || 'Independent';
+    return {
+      org: { id: `personal:${this.user.id}`, name: `${name} (independent)`, kind: 'independent', tier: 'basic', activeSeats: 1, seatLimit: 1 },
+      member: {
+        userId: this.user.id,
+        name: this.user.name ?? '',
+        email: this.user.email ?? '',
+        role: 'owner',
+        equipment: 'dry_van',
+        joinedAt: new Date(0).toISOString(),
+      },
+    };
   }
 }
+
+interface OrgRow {
+  id: string;
+  name: string;
+  kind: string;
+  tier: string;
+  active_seats: number;
+  seat_limit: number;
+}
+
+interface MembershipRow {
+  org_id: string;
+  user_id: string;
+  role: string;
+  equipment: string | null;
+  is_active: boolean;
+  joined_at: string | null;
+  organizations: OrgRow | OrgRow[] | null;
+}
+
+function firstOrg(r: MembershipRow): OrgRow {
+  const o = Array.isArray(r.organizations) ? r.organizations[0] : r.organizations;
+  return o ?? { id: r.org_id, name: 'Account', kind: 'independent', tier: 'basic', active_seats: 1, seat_limit: 1 };
+}
+
+function mapOrg(r: OrgRow): Organization {
+  return {
+    id: r.id,
+    name: r.name,
+    kind: r.kind as OrgKind,
+    tier: (r.tier as Organization['tier']) ?? 'basic',
+    activeSeats: r.active_seats,
+    seatLimit: r.seat_limit,
+  };
+}
+

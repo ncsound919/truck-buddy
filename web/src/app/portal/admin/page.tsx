@@ -4,14 +4,15 @@ import { EmptyState } from '@/components/ui/feedback';
 import { Badge } from '@/components/ui/badge';
 import { UsersIcon } from '@/components/icons';
 import { PageTitle, SectionCard } from '@/components/portal/primitives';
-import { portalApi } from '@/lib/mock-api';
+import { getPortalApi } from '@/lib/portal-api';
 import { KIND_LABEL, ROLE_LABEL, isManager } from '@/lib/rbac';
 import { TeamPanel } from './team-panel';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdminPage() {
-  const membership = await portalApi.getMembership();
+  const api = await getPortalApi();
+  const membership = await api.getMembership();
   const role = membership.member.role;
 
   if (!isManager(role)) {
@@ -27,7 +28,7 @@ export default async function AdminPage() {
     );
   }
 
-  const members = await portalApi.getOrgMembers(membership.org.id);
+  const members = await api.getOrgMembers(membership.org.id);
 
   return (
     <div>

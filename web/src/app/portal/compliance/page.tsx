@@ -2,7 +2,7 @@ import { PageTitle, SectionCard } from '@/components/portal/primitives';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/feedback';
 import { ShieldIcon } from '@/components/icons';
-import { portalApi } from '@/lib/mock-api';
+import { getPortalApi } from '@/lib/portal-api';
 import { runsOwnAuthority } from '@/lib/perspective';
 import type {
   ComplianceCategory,
@@ -56,9 +56,10 @@ const VERDICT_BANNER: Record<
 };
 
 export default async function CompliancePage() {
+  const api = await getPortalApi();
   const [dossier, profile] = await Promise.all([
-    portalApi.getCompliance(),
-    portalApi.getOperatingProfile(),
+    api.getCompliance(),
+    api.getOperatingProfile(),
   ]);
 
   if (!runsOwnAuthority(profile)) {
