@@ -29,9 +29,9 @@ async function ensureOrg(userId: string, email: string | null, name: string, adm
   if (existing.data?.length) return;
 
   const map = email ? ORG_MAP[email.toLowerCase()] : undefined;
-  const orgName = map?.org || `${name || 'Independent'} (independent)`;
+  const orgName = map?.org || name || 'Independent';
   const role = map?.role || 'owner';
-  const kind = map?.kind || (admin ? 'fleet' : 'independent');
+  const kind = map?.kind || 'independent';
 
   let orgId: string | undefined;
   const found = await select<{ id: string }>('organizations', 'id', { eq: ['name', orgName], limit: 1 });
