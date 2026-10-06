@@ -3,18 +3,14 @@
 import { useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { ROLE_LABEL } from '@/lib/rbac';
-import type { EquipmentId, OrgMember, OrgRole } from '@/lib/domain';
+import type { OrgMember, OrgRole } from '@/lib/domain';
 
 const ROLES: OrgRole[] = ['owner', 'admin', 'dispatcher', 'driver', 'accountant'];
-const EQUIPMENT: EquipmentId[] = ['box_truck', 'hotshot', 'dry_van', 'reefer', 'flatbed', 'tanker'];
 
 export function TeamPanel({ meRole, initial }: { meRole: OrgRole; initial: OrgMember[] }) {
   const [members, setMembers] = useState<OrgMember[]>(initial);
   const [error, setError] = useState<string | null>(null);
-  const [invite, setInvite] = useState({ name: '', email: '', role: 'driver' as OrgRole, equipment: 'dry_van' as EquipmentId });
-  const [busy, setBusy] = useState(false);
 
   async function changeRole(memberId: string, role: OrgRole) {
     setError(null);
@@ -29,27 +25,6 @@ export function TeamPanel({ meRole, initial }: { meRole: OrgRole; initial: OrgMe
       setMembers(list);
     } catch {
       setError('Could not change that role.');
-    }
-  }
-
-  async function inviteMember() {
-    if (!invite.name.trim() || !invite.email.trim()) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/portal/orgs/members', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(invite),
-      });
-      if (!res.ok) throw new Error('invite_failed');
-      const { member } = (await res.json()) as { member: OrgMember };
-      setMembers((m) => [...m, member]);
-      setInvite({ name: '', email: '', role: 'driver', equipment: 'dry_van' });
-    } catch {
-      setError('Invite failed — seat limit reached or invalid email.');
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -102,26 +77,10 @@ export function TeamPanel({ meRole, initial }: { meRole: OrgRole; initial: OrgMe
         </ul>
       </div>
 
-      <div className="rounded-2xl border border-line bg-white p-5">
-        <h3 className="text-[15px] font-extrabold text-ink">Invite a member</h3>
-        <div className="mt-3 grid gap-3 sm:grid-cols-4">
-          <input value={invite.name} onChange={(e) => setInvite({ ...invite, name: e.target.value })} placeholder="Full name"
-            className="h-11 rounded-xl border border-line bg-white px-3 text-sm text-ink outline-none focus:border-accent sm:col-span-1" />
-          <input value={invite.email} onChange={(e) => setInvite({ ...invite, email: e.target.value })} placeholder="email@company.com"
-            className="h-11 rounded-xl border border-line bg-white px-3 text-sm text-ink outline-none focus:border-accent sm:col-span-1" />
-          <select value={invite.role} onChange={(e) => setInvite({ ...invite, role: e.target.value as OrgRole })}
-            className="h-11 rounded-xl border border-line bg-white px-3 text-sm text-ink outline-none focus:border-accent sm:col-span-1">
-            {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
-          </select>
-          <select value={invite.equipment} onChange={(e) => setInvite({ ...invite, equipment: e.target.value as EquipmentId })}
-            className="h-11 rounded-xl border border-line bg-white px-3 text-sm text-ink outline-none focus:border-accent sm:col-span-1">
-            {EQUIPMENT.map((e) => <option key={e} value={e}>{e.replace('_', ' ')}</option>)}
-          </select>
-        </div>
-        <Button className="mt-3" onClick={inviteMember} disabled={busy || !invite.name || !invite.email}>
-          {busy ? 'Inviting…' : 'Send invite'}
-        </Button>
-      </div>
+      <p className="text-sm text-muted">
+        Teammates join by signing in to the portal with their own email — once they do, they appear here and you can
+        set their role. There is no invite step.
+      </p>
     </div>
   );
 }
