@@ -80,7 +80,7 @@ export async function signUp(email: string, password: string, name: string) {
     password,
     options: {
       data: { full_name: name },
-      emailRedirectTo: `${typeof window !== "undefined" ? window.location.origin : ""}/portal`,
+      emailRedirectTo: `${typeof window !== "undefined" ? window.location.origin : ""}/auth/callback`,
     },
   });
   return { data, error };
@@ -106,7 +106,7 @@ export async function signInWithMagicLink(email: string) {
   const { data, error } = await supabase.auth.signInWithOtp({
     email,
     options: {
-      emailRedirectTo: `${typeof window !== "undefined" ? window.location.origin : ""}/portal`,
+      emailRedirectTo: `${typeof window !== "undefined" ? window.location.origin : ""}/auth/callback`,
     },
   });
   return { data, error };
@@ -120,7 +120,7 @@ export async function signInWithOAuth(provider: "google" | "github") {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider,
     options: {
-      redirectTo: `${typeof window !== "undefined" ? window.location.origin : ""}/portal`,
+      redirectTo: `${typeof window !== "undefined" ? window.location.origin : ""}/auth/callback`,
     },
   });
   return { data, error };
@@ -140,7 +140,7 @@ export async function signOut() {
 export async function resetPassword(email: string) {
   const supabase = createClient();
   const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${typeof window !== "undefined" ? window.location.origin : ""}/portal/reset-password`,
+    redirectTo: `${typeof window !== "undefined" ? window.location.origin : ""}/auth/callback?next=/portal/reset-password`,
   });
   return { data, error };
 }
@@ -155,7 +155,7 @@ export async function resendConfirmation(email: string) {
     type: "signup",
     email,
     options: {
-      emailRedirectTo: `${typeof window !== "undefined" ? window.location.origin : ""}/portal`,
+      emailRedirectTo: `${typeof window !== "undefined" ? window.location.origin : ""}/auth/callback`,
     },
   });
   return { data, error };
