@@ -77,9 +77,9 @@ top. The Supabase client already calls `signInWithOAuth({ provider:
    - Name: `Truck Buddy Auth`
    - Authorized JavaScript origins:
      - `https://truckbuddy.online`
-     - `https://bxjtmcumkffcbzuhusxn.supabase.co`  ← your project ref
+     - `https://ennaghywpvlnprsqqzmq.supabase.co`  ← your project ref
    - Authorized redirect URIs:
-     - `https://bxjtmcumkffcbzuhusxn.supabase.co/auth/v1/callback`
+     - `https://ennaghywpvlnprsqqzmq.supabase.co/auth/v1/callback`
    - Save → copy the **Client ID** and **Client Secret**.
 
 ### In Supabase dashboard
@@ -137,7 +137,15 @@ git push -u origin fix/auth-hero-and-google
 # then PR into main; Vercel will pick it up on merge
 ```
 
-No environment variable changes are required for this work — all new
-features use the existing `NEXT_PUBLIC_SUPABASE_URL` and
-`NEXT_PUBLIC_SUPABASE_ANON_KEY` already in Vercel. Google + SMTP setup
-is done in dashboards, not in code.
+Environment variables **did** change when the project moved: `app.json`
+(`extra.supabaseUrl`/`supabaseAnonKey`), `web/.env.local`, the Vercel project env
+(for the portal) and `TruckBuddy-Social/.env` now point at
+`ennaghywpvlnprsqqzmq`. `NEXT_PUBLIC_SUPABASE_URL` /`_ANON_KEY` are inlined at
+build time, so the portal must be **redeployed** for a change to take effect.
+
+Auth callbacks are exchanged server-side at `/auth/callback` (the `@supabase/ssr`
+clients use the PKCE flow): OAuth, magic link, signup confirmation and password
+reset all return `?code=` there, which exchanges it for the session cookies. The
+Google Cloud redirect URI therefore has to be the Supabase callback
+(`https://ennaghywpvlnprsqqzmq.supabase.co/auth/v1/callback`), not this app's
+callback path.

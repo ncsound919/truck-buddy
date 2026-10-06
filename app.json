@@ -65,8 +65,8 @@
       "reactCompiler": true
     },
     "extra": {
-      "supabaseUrl": "https://bxjtmcumkffcbzuhusxn.supabase.co",
-      "supabaseAnonKey": "sb_publishable_TPLtkfxtvxXRWFY_K7FMuw_CQ58kVcI",
+      "supabaseUrl": "https://ennaghywpvlnprsqqzmq.supabase.co",
+      "supabaseAnonKey": "sb_publishable__gKi540T5GLC6wbcV9Tttw_QIAXwQ5G",
       "dispatchFunctionPath": "/functions/v1/dispatch-send"
     }
   }

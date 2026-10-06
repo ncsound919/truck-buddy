@@ -47,7 +47,7 @@ The UI/state machine is real. Everything the app dispatches runs through
 ## Shared backend across the three apps
 The cab app, the web portal (`web/`) and the social app (separate repo
 `TruckBuddy-Social`, now migrated off Firebase) all point at the **same Supabase
-project** (`bxjtmcumkffcbzuhusxn`) and the same identity — `auth.users.id`. The
+project** (`ennaghywpvlnprsqqzmq`) and the same identity — `auth.users.id`. The
 shared schema, RLS, counters, storage buckets and Realtime publication live in
 `supabase/migrations/` (applied + recorded in `supabase_migrations`). The web
 portal persists its operating profile in `public.profiles.metadata.operatingProfile`

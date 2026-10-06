@@ -35,8 +35,11 @@ yarn-error.*
 .env.*
 !.env.example
 .truckbuddy-build.env
+# project credentials notes (db password, service key, sbp_ PAT) - never commit
+supabase.txt
 
 # coverage + test artifacts
+web/.vitest/
 coverage/
 test-results/
 
