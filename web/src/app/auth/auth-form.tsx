@@ -101,7 +101,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
         {mode === 'sign-up' ? (
           <div>
             <label className={label} htmlFor="name">Full name</label>
-            <input id="name" name="name" className={input} placeholder="Terrence Brooks" autoComplete="name" />
+            <input id="name" name="name" className={input} placeholder="Your full name" autoComplete="name" />
           </div>
         ) : null}
 
