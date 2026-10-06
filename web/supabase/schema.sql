@@ -7,6 +7,13 @@
 -- 20260917090900_portal_billing_tables.sql). Prefer the migrations and keep this
 -- file in sync or delete it - a fresh project built from migrations alone failed
 -- once already because stripe_webhook_events existed only here.
+--
+-- ALSO: the organizations / org_memberships policies in this file are BROKEN -
+-- they test membership with an inline EXISTS on org_memberships from inside an
+-- org_memberships policy, which recurses (42P17). They were replaced by
+-- SECURITY DEFINER helpers in
+-- supabase/migrations/20261006120000_org_membership_rls_recursion.sql. Do not
+-- re-run the policies below.
 
 -- Enable required extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
