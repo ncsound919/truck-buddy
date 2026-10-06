@@ -1,5 +1,12 @@
 -- Supabase schema for Truck Buddy portal
 -- Run this in the Supabase SQL editor to set up auth and billing tables.
+--
+-- NOTE: the tables below are now also created by supabase/migrations/
+-- (profiles -> 20260917090000_unified_identity.sql; organizations,
+-- org_memberships, invoices, stripe_webhook_events ->
+-- 20260917090900_portal_billing_tables.sql). Prefer the migrations and keep this
+-- file in sync or delete it - a fresh project built from migrations alone failed
+-- once already because stripe_webhook_events existed only here.
 
 -- Enable required extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
