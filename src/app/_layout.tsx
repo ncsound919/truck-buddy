@@ -5,14 +5,19 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { buildDemoSession } from '@/domain/data';
 import { MockTruckBuddyApi } from '@/services/truck-buddy-api';
+import { withLiveAssignment } from '@/services/live-assignment';
+import { getDispatchAccessToken } from '@/services/dispatch-session';
 import { ProfileProvider } from '@/hooks/use-operating-profile';
 import { FlowProvider } from '@/store/flow';
 
 /**
- * Root layout. Single API seam for the whole app: swap MockTruckBuddyApi for
- * the HTTP implementation when the backend exists.
+ * Root layout. Single API seam for the whole app. On live sessions the route,
+ * vehicle and stop data come from the shared Supabase project; offline/fixture
+ * sessions keep the demo data.
  */
-const api = new MockTruckBuddyApi(buildDemoSession);
+const api = withLiveAssignment(new MockTruckBuddyApi(buildDemoSession), {
+  getToken: () => getDispatchAccessToken().catch(() => null),
+});
 
 export default function RootLayout() {
   const scheme = useColorScheme();

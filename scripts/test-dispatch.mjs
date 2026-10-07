@@ -4,7 +4,7 @@
 // Send a test email through the deployed dispatch-send Edge Function.
 // Usage:
 //   SUPABASE_URL=https://xxx.supabase.co \
-//   SUPABASE_ANON_KEY=eyJ... \
+//   SUPABASE_ACCESS_TOKEN=eyJ... \
 //   TO_EMAIL=you@example.com \
 //   node scripts/test-dispatch.mjs
 //
@@ -13,11 +13,11 @@
 // Resend (use onboarding@resend.dev for free-tier testing, or a domain you own).
 
 const base = process.env.SUPABASE_URL;
-const anon = process.env.SUPABASE_ANON_KEY;
+const token = process.env.SUPABASE_ACCESS_TOKEN;
 const to = process.env.TO_EMAIL;
 
-if (!base || !anon || !to) {
-  console.error('Missing SUPABASE_URL, SUPABASE_ANON_KEY, or TO_EMAIL in env.');
+if (!base || !token || !to) {
+  console.error('Missing SUPABASE_URL, SUPABASE_ACCESS_TOKEN, or TO_EMAIL in env.');
   process.exit(2);
 }
 
@@ -27,7 +27,7 @@ const res = await fetch(url, {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${anon}`,
+    'Authorization': `Bearer ${token}`,
   },
   body: JSON.stringify({
     kind: 'email',

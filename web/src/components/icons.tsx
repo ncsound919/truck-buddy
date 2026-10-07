@@ -26,6 +26,13 @@ export const TruckIcon = (p: IconProps) => (
   </svg>
 );
 
+export const BoardIcon = (p: IconProps) => (
+  <svg {...base(p)}>
+    <rect x="3" y="4" width="18" height="12" rx="2" />
+    <path d="M8 20h8M12 16v4" />
+  </svg>
+);
+
 export const RouteIcon = (p: IconProps) => (
   <svg {...base(p)}>
     <circle cx="6" cy="6" r="2.4" />

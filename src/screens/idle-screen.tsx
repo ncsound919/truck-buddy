@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { Image, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { SignInForDispatch } from '@/components/sign-in-for-dispatch';
 import { BigButton, Pill, SampleTag } from '@/components/ui';
 import { Brand, useIsDark } from '@/constants/brand';
 import { Spacing } from '@/constants/theme';
@@ -184,9 +185,12 @@ export function IdleScreen() {
                 </View>
                 <Text style={styles.noteText}>
                   {prefs?.dispatchTransport === 'live'
-                    ? 'Live: emails go through the Supabase function → Resend; texts go through your recipient’s carrier gateway. Queued items retry when you’re back online.'
+                    ? 'Live: emails go through the Supabase function; texts go through your recipient\'s carrier gateway. You must be signed in with a Truck Buddy account.'
                     : 'Mock: messages only land in the in-app activity log. Flip on when the function is configured.'}
                 </Text>
+                {prefs?.dispatchTransport === 'live' && (
+                  <SignInForDispatch />
+                )}
               </View>
 
               <Text style={styles.sectionKicker}>Auto-help</Text>

@@ -6,9 +6,9 @@
 // Voice has no provider: automated calls are not offered; the cab dials
 // through the device phone app (`tel:`) instead.
 //
-// Auth: requires the function to be called with the Supabase anon key in the
-// `Authorization` header. The Resend key lives in a Supabase secret
-// (`RESEND_API_KEY`) and never leaves the function.
+// Auth: requires the caller's Supabase access token. The anon key alone is
+// not enough (DISPATCH_SEND_ALLOW_ANON=true is a local-dev escape hatch only).
+// The Resend key lives in a Supabase secret (`RESEND_API_KEY`).
 //
 // Deploy (needs a Supabase access token — `supabase login` first):
 //   supabase link --project-ref YOUR_PROJECT_REF
@@ -120,6 +120,8 @@ async function sendViaResend(payload: DispatchPayload): Promise<DispatchResult> 
   return { ok: true, transport: 'resend', id };
 }
 
+const sendBudget = new Map<string, { windowStart: number; count: number }>();
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return json({ ok: true }, { status: 204 });
@@ -127,13 +129,42 @@ Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') {
     return json({ ok: false, error: 'method not allowed' }, { status: 405 });
   }
-  // Supabase automatically validates the Authorization header against the
-  // project's anon key when the function is invoked via the Functions URL.
-  // We accept any non-empty Authorization here so local `supabase functions
-  // serve` works without a JWT.
+  // Auth: require a *real* user JWT, not just any non-empty Authorization.
+  // SUPABASE_URL / SUPABASE_ANON_KEY are provided by the runtime in production.
+  // Local escape hatch for `supabase functions serve`:
+  //   DISPATCH_SEND_ALLOW_ANON=true
   const auth = req.headers.get('authorization');
   if (!auth) {
     return json({ ok: false, error: 'missing authorization' }, { status: 401 });
+  }
+  const allowAnon = Deno.env.get('DISPATCH_SEND_ALLOW_ANON') === 'true';
+  let callerId: string | null = null;
+  if (!allowAnon) {
+    const supaUrl = Deno.env.get('SUPABASE_URL');
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
+    if (!supaUrl || !anonKey) {
+      return json({ ok: false, error: 'function not configured for auth' }, { status: 503 });
+    }
+    const check = await fetch(`${supaUrl}/auth/v1/user`, {
+      headers: { authorization: auth, apikey: anonKey },
+    });
+    if (!check.ok) {
+      return json({ ok: false, error: 'invalid session' }, { status: 401 });
+    }
+    const me = await check.json().catch(() => ({} as { id?: string }));
+    callerId = typeof me.id === 'string' ? me.id : null;
+  }
+
+  // Per-user flood guard (per function instance): 30 messages per minute.
+  const now = Date.now();
+  const bucket = sendBudget.get(callerId ?? 'anon');
+  if (!bucket || now - bucket.windowStart > 60_000) {
+    sendBudget.set(callerId ?? 'anon', { windowStart: now, count: 1 });
+  } else {
+    bucket.count += 1;
+    if (bucket.count > 30) {
+      return json({ ok: false, error: 'rate limited' }, { status: 429 });
+    }
   }
 
   let payload: DispatchPayload;

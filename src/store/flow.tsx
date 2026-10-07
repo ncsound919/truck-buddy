@@ -37,6 +37,7 @@ import type {
 import { haptic } from '@/services/haptics';
 import { memory } from '@/services/memory';
 import { TruckBuddyApi } from '@/services/truck-buddy-api';
+import { inspectionBackStep } from '@/domain/inspection';
 import { announce, stopVoice } from '@/services/voice';
 
 /** Deep clone helper for plain-data state (avoids relying on Hermes `structuredClone`). */
@@ -274,15 +275,12 @@ function reducer(state: FlowState, action: FlowAction): FlowState {
       recordInspection(draft, false, action.note || 'Flagged in inspection');
       return draft;
 
-    case 'INSPECTION_BACK':
-      if (draft.inspectionIndex > 0) {
-        // Re-opening an item drops its recorded answer so re-answering replaces
-        // it (otherwise the DVIR keeps contradictory/duplicate entries).
-        const reopenId = DEMO_INSPECTION_ITEMS[draft.inspectionIndex]?.id;
-        draft.inspectionEntries = draft.inspectionEntries.filter((e) => e.itemId !== reopenId);
-        draft.inspectionIndex -= 1;
-      }
+    case 'INSPECTION_BACK': {
+      const next = inspectionBackStep(draft.inspectionEntries, draft.inspectionIndex);
+      draft.inspectionEntries = next.entries;
+      draft.inspectionIndex = next.inspectionIndex;
       return draft;
+    }
 
     case 'SIMULATE_ARRIVE': {
       const stop = draft.route?.stops[draft.activeStopIndex];

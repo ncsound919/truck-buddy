@@ -14,6 +14,7 @@ import type {
 } from '@/domain/types';
 import type { ComplianceDossier, DeliveryContract } from '@/domain/contract';
 import { getLivePrefs } from './prefs-bridge';
+import { getDispatchAccessToken } from './dispatch-session';
 
 /**
  * The mobile app's contract with the Truck Buddy backend.
@@ -142,11 +143,17 @@ async function sendViaResend(
     body.carrier = message.carrier;
   }
 
+  // Prefer the driver's signed-in session token; the anonymous key is only
+  // enough when the function is configured with DISPATCH_SEND_ALLOW_ANON=true
+  // (local development). Production requires a real user JWT.
+  const sessionToken = await getDispatchAccessToken().catch(() => null);
+  const bearer = sessionToken ?? anonKey;
+
   const res = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${anonKey}`,
+      'Authorization': `Bearer ${bearer}`,
     },
     body: JSON.stringify(body),
   });

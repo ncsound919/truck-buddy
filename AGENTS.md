@@ -54,6 +54,41 @@ portal persists its operating profile in `public.profiles.metadata.operatingProf
 (`web/src/app/api/portal/profile/route.ts`), and the cab app reads shared road
 advisories through `src/services/shared-data.ts`.
 
+## AetherRoute dispatch merge (ops + document tables)
+AetherRoute now persists to the same project. Two migration families in
+`supabase/migrations/`:
+- `*_aetherroute_ops_tables.sql` — relational dispatch model keyed to
+  `organizations`: `vehicles`, `driver_roster`, `orders`, `routes`, `stops`,
+  `location_pings`, with RLS via `is_org_member` / `is_org_admin` and
+  driver-scoped ping/stop policies. The cab reads `routes`/`stops`/`vehicles`
+  here by the signed-in user's uid (`src/services/live-assignment.ts`).
+- `*_aetherroute_document_tables.sql` — `ar_orders/ar_drivers/ar_routes/ar_pings/
+  ar_idempotency` JSONB documents; RLS on with no client policies, so only the
+  service-role key (server) can touch them.
+
+AetherRoute server env: `SUPABASE_URL` + `SUPABASE_ANON_KEY` (user-token
+verification) **and** `SUPABASE_SERVICE_ROLE_KEY` (write-through store +
+ops mirror). Without the service key AetherRoute runs in in-memory mode
+(`mode: 'memory'`). A driver only appears in the ops tables once its AetherRoute
+record carries `orgId` + `authUserId`; the mirror no-ops otherwise.
+Credentials for the CLI/`db push` are in `supabase.txt` (git-ignored).
+
+Additional AetherRoute env (all optional; each degrades honestly when unset):
+- `AETHERROUTE_ORG_ID` — one active org per session; scopes reads/writes and
+  rejects non-members.
+- `RESEND_API_KEY` + `EMAIL_FROM` — real email (via the outbox). Unset → email
+  is composed only and labelled `demo`, never "sent".
+- `POD_SIGNING_SECRET` — HMAC for POD upload tokens; unset uses an ephemeral
+  dev secret (never rely on that in production).
+- `VROOM_URL` — self-hosted VROOM; unset solves in-process.
+- `OUTBOX_PATH` (default `data/outbox.jsonl`), `ALLOW_PRIVATE_WEBHOOKS=true`
+  (local webhook targets only).
+
+Outbound webhooks are signed per Standard Webhooks (`webhook-id`,
+`webhook-timestamp`, `webhook-signature`). Retention: `private.purge_stale_social()`
+is scheduled with pg_cron when available, else run it manually.
+
+
 
 ## Email transport stack
 ```
@@ -98,9 +133,11 @@ supabase secrets set EMAIL_FROM="Truck Buddy <dispatch@yourdomain.example>"
 # 4. Deploy the function
 supabase functions deploy dispatch-send
 
-# 5. Smoke-test (from repo root)
+# 5. Smoke-test (from repo root) — with a *user* access token (sign in via any app),
+#    not the anon key. DISPATCH_SEND_ALLOW_ANON=true on the function is the local-dev
+#    escape hatch, never set it in production.
 SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co \
-SUPABASE_ANON_KEY=eyJ... \
+SUPABASE_ACCESS_TOKEN=eyJ... \
 TO_EMAIL=you@example.com \
 node scripts/test-dispatch.mjs
 
