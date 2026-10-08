@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server';
 import { isAdminEmail } from '@/lib/ops/ops-auth';
 import { insert, opsConfigured, select, update } from '@/lib/ops/admin-client';
+import { planMembership, personalOrgName } from '@/lib/portal-org';
 
 /**
  * The signed-in portal user, with admin resolution and first-login provisioning.
@@ -29,14 +30,33 @@ async function ensureOrg(userId: string, email: string | null, name: string, adm
   if (existing.data?.length) return;
 
   const map = email ? ORG_MAP[email.toLowerCase()] : undefined;
-  const orgName = map?.org || name || 'Independent';
-  const role = map?.role || 'owner';
   const kind = map?.kind || 'independent';
+  const plan = planMembership({
+    mapped: map?.org ? { org: map.org, role: map.role } : undefined,
+    userName: name,
+    userId,
+  });
 
   let orgId: string | undefined;
-  const found = await select<{ id: string }>('organizations', 'id', { eq: ['name', orgName], limit: 1 });
-  orgId = found.data?.[0]?.id;
-  if (!orgId) {
+  if (plan.action === 'join') {
+    // Only reached with an explicit server-side PORTAL_ORG_MAP entry.
+    const found = await select<{ id: string }>('organizations', 'id', { eq: ['name', plan.orgName], limit: 1 });
+    orgId = found.data?.[0]?.id;
+    if (!orgId) {
+      const created = await insert<{ id: string }>('organizations', {
+        name: plan.orgName,
+        kind,
+        tier: 'basic',
+        active_seats: 1,
+        seat_limit: 1,
+      });
+      orgId = created.data?.[0]?.id;
+    }
+  } else {
+    // Personal org. Never reuse an existing org that happens to share the name:
+    // disambiguate so a client-supplied name cannot select someone else's org.
+    const taken = await select<{ id: string }>('organizations', 'id', { eq: ['name', plan.orgName], limit: 1 });
+    const orgName = personalOrgName(plan.orgName, userId, Boolean(taken.data?.length));
     const created = await insert<{ id: string }>('organizations', {
       name: orgName,
       kind,
@@ -46,11 +66,12 @@ async function ensureOrg(userId: string, email: string | null, name: string, adm
     });
     orgId = created.data?.[0]?.id;
   }
+
   if (orgId) {
     await insert('org_memberships', {
       org_id: orgId,
       user_id: userId,
-      role,
+      role: plan.role,
       equipment: 'dry_van',
       is_active: true,
     });

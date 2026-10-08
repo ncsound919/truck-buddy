@@ -117,14 +117,23 @@ async function handleCheckoutComplete(stripe: Stripe, session: Stripe.Checkout.S
   }
   const periodEnd = getPeriodEnd(subscription);
 
-  // Update user's profile
-  await supabase.from("profiles").upsert({
+  // Update the existing profile row. A bare upsert has no conflict target (the
+  // PK is profiles.id, which isn't present), so it silently failed to merge;
+  // update by the user id the checkout session recorded.
+  const userId = (session.metadata?.userId || session.client_reference_id || "") as string;
+  const patch = {
     stripe_customer_id: customerId,
     stripe_subscription_id: subscriptionId,
     subscription_tier: tier,
     subscription_status: subscription.status,
     subscription_period_end: new Date(periodEnd * 1000).toISOString(),
-  });
+  };
+  const { error } = userId
+    ? await supabase.from("profiles").update(patch).eq("id", userId)
+    : await supabase.from("profiles").update(patch).eq("stripe_customer_id", customerId);
+  if (error) {
+    console.error(`Checkout complete: failed to persist subscription for customer=${customerId}: ${error.message}`);
+  }
 
   console.log(`Checkout complete: customer=${customerId}, subscription=${subscriptionId}, tier=${tier}`);
 }

@@ -43,4 +43,14 @@ try { body = JSON.parse(text); } catch { body = text; }
 
 console.log(`status: ${res.status}`);
 console.log(JSON.stringify(body, null, 2));
-process.exit(res.ok ? 0 : 1);
+
+// Recipient-policy probe: a malformed address must be rejected with 400, never
+// relayed. This proves the validation gate is active on the deployment.
+const badRes = await fetch(url, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+  body: JSON.stringify({ kind: 'email', to: 'bad@@example.com\r\nBcc: victim@example.com', subject: 'x', body: 'x' }),
+});
+console.log(`recipient-policy probe (expect 400): ${badRes.status}`);
+
+process.exit(res.ok && badRes.status === 400 ? 0 : 1);

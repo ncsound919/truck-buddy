@@ -121,6 +121,40 @@ async function sendViaResend(payload: DispatchPayload): Promise<DispatchResult> 
 }
 
 const sendBudget = new Map<string, { windowStart: number; count: number }>();
+const dailyBudget = new Map<string, { day: string; count: number }>();
+
+function emailDomain(addr: string): string {
+  const at = addr.lastIndexOf('@');
+  return at === -1 ? '' : addr.slice(at + 1).toLowerCase().trim();
+}
+
+/**
+ * Recipient policy for an authenticated dispatch send. This is a transactional
+ * service for the caller's own customers, so it is not a strict allowlist — but
+ * it rejects malformed/header-injecting addresses and, when the operator sets
+ * DISPATCH_SEND_ALLOWED_DOMAINS, restricts recipients to those domains (plus the
+ * caller's own domain and EMAIL_FROM's domain).
+ */
+function validateRecipient(
+  payload: DispatchPayload,
+  opts: { allowDomains: string[]; callerEmail: string | null },
+): { ok: true } | { ok: false; error: string } {
+  const to = (payload.to ?? '').trim();
+  if (!to || /[\r\n]/.test(to) || to.length > 254) return { ok: false, error: 'invalid recipient' };
+  if (payload.kind === 'sms') {
+    if (!digitsOnly(to)) return { ok: false, error: 'sms needs a 10-digit US number' };
+    return { ok: true };
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return { ok: false, error: 'invalid email recipient' };
+  if (opts.allowDomains.length) {
+    const dom = emailDomain(to);
+    const fromDom = emailDomain(Deno.env.get('EMAIL_FROM') ?? '');
+    const callerDom = opts.callerEmail ? emailDomain(opts.callerEmail) : '';
+    const allowed = opts.allowDomains.includes(dom) || (dom !== '' && (dom === fromDom || dom === callerDom));
+    if (!allowed) return { ok: false, error: 'recipient domain not allowed' };
+  }
+  return { ok: true };
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
@@ -139,6 +173,7 @@ Deno.serve(async (req: Request) => {
   }
   const allowAnon = Deno.env.get('DISPATCH_SEND_ALLOW_ANON') === 'true';
   let callerId: string | null = null;
+  let callerEmail: string | null = null;
   if (!allowAnon) {
     const supaUrl = Deno.env.get('SUPABASE_URL');
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
@@ -151,19 +186,38 @@ Deno.serve(async (req: Request) => {
     if (!check.ok) {
       return json({ ok: false, error: 'invalid session' }, { status: 401 });
     }
-    const me = await check.json().catch(() => ({} as { id?: string }));
+    const me = await check.json().catch(() => ({} as { id?: string; email?: string }));
     callerId = typeof me.id === 'string' ? me.id : null;
+    callerEmail = typeof me.email === 'string' ? me.email : null;
   }
 
   // Per-user flood guard (per function instance): 30 messages per minute.
   const now = Date.now();
   const bucket = sendBudget.get(callerId ?? 'anon');
   if (!bucket || now - bucket.windowStart > 60_000) {
+    // Bound the map so a busy instance cannot grow without limit.
+    if (sendBudget.size > 5000) sendBudget.clear();
     sendBudget.set(callerId ?? 'anon', { windowStart: now, count: 1 });
   } else {
     bucket.count += 1;
     if (bucket.count > 30) {
       return json({ ok: false, error: 'rate limited' }, { status: 429 });
+    }
+  }
+
+  // Per-user daily ceiling (default 500) so a single account cannot mass-mail
+  // from the verified sending domain.
+  const today = new Date().toISOString().slice(0, 10);
+  const maxPerDay = Number(Deno.env.get('DISPATCH_SEND_MAX_PER_DAY') ?? '500') || 500;
+  const dayKey = callerId ?? 'anon';
+  const d = dailyBudget.get(dayKey);
+  if (!d || d.day !== today) {
+    if (dailyBudget.size > 5000) dailyBudget.clear();
+    dailyBudget.set(dayKey, { day: today, count: 1 });
+  } else {
+    d.count += 1;
+    if (d.count > maxPerDay) {
+      return json({ ok: false, error: 'daily dispatch limit reached' }, { status: 429 });
     }
   }
 
@@ -175,6 +229,15 @@ Deno.serve(async (req: Request) => {
   }
   if (!payload?.to || !payload?.subject || payload?.body == null) {
     return json({ ok: false, error: 'to, subject, body required' }, { status: 400 });
+  }
+
+  const allowDomains = (Deno.env.get('DISPATCH_SEND_ALLOWED_DOMAINS') ?? '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  const recipient = validateRecipient(payload, { allowDomains, callerEmail });
+  if (!recipient.ok) {
+    return json({ ok: false, error: recipient.error }, { status: 400 });
   }
 
   if (payload.kind === 'call') {

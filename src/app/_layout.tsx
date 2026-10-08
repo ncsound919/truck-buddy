@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useColorScheme } from 'react-native';
@@ -5,8 +6,9 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { buildDemoSession } from '@/domain/data';
 import { MockTruckBuddyApi } from '@/services/truck-buddy-api';
-import { withLiveAssignment } from '@/services/live-assignment';
+import { withLiveAssignment, userIdFromJwt } from '@/services/live-assignment';
 import { getDispatchAccessToken } from '@/services/dispatch-session';
+import { startPingAgent } from '@/services/ping-agent';
 import { ProfileProvider } from '@/hooks/use-operating-profile';
 import { FlowProvider } from '@/store/flow';
 
@@ -22,6 +24,28 @@ const api = withLiveAssignment(new MockTruckBuddyApi(buildDemoSession), {
 export default function RootLayout() {
   const scheme = useColorScheme();
   const isDark = scheme === 'dark';
+
+  // Close the return leg of the loop: while signed in with a live route, the cab
+  // sends throttled GPS pings so the dispatcher map shows the real dot. Native
+  // only; a no-op on web and when signed out.
+  useEffect(() => {
+    let cache = { at: 0, live: false };
+    const agent = startPingAgent({
+      getOrgId: () => api.getPrimaryOrgId(),
+      getContext: async () => {
+        const token = await getDispatchAccessToken().catch(() => null);
+        const userId = token ? userIdFromJwt(token) : null;
+        if (!userId) return { userId: null, onShift: false, hasActiveRoute: false };
+        const now = Date.now();
+        if (now - cache.at > 20_000 || !cache.live) {
+          cache = { at: now, live: await api.hasLiveRoute().catch(() => false) };
+        }
+        return { userId, onShift: cache.live, hasActiveRoute: cache.live };
+      },
+      sendPing: (orgId, userId, lat, lng, extra) => api.submitPing(orgId, userId, lat, lng, extra),
+    });
+    return () => agent.stop();
+  }, []);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

@@ -205,6 +205,14 @@ export class LiveAssignmentFetcher {
       battery_pct: extra.batteryPct ?? null,
     });
   }
+
+  /** The driver's first active org membership, needed to stamp a ping. Null if none. */
+  async fetchPrimaryOrgId(userId: string): Promise<string | null> {
+    const rows = await this.getJson<Array<{ org_id: string }>>(
+      `org_memberships?user_id=eq.${userId}&is_active=eq.true&limit=1`,
+    );
+    return rows?.[0]?.org_id ?? null;
+  }
 }
 
 /** TodaySession is rebuilt from live rows; falls back to null fields from the mock. */
@@ -293,6 +301,25 @@ export function withLiveAssignment(api: import('@/services/truck-buddy-api').Moc
     },
     // Expose the ping capability for the shift/nav tick.
     submitPing: { value: live.submitPing.bind(live) },
-  } as PropertyDescriptorMap) as typeof base & { submitPing: LiveAssignmentFetcher['submitPing'] };
+    getPrimaryOrgId: {
+      value: async (): Promise<string | null> => {
+        const token = options.getToken ? await options.getToken().catch(() => null) : null;
+        const uid = token ? userIdFromJwt(token) : null;
+        return uid ? live.fetchPrimaryOrgId(uid) : null;
+      },
+    },
+    hasLiveRoute: {
+      value: async (): Promise<boolean> => {
+        const token = options.getToken ? await options.getToken().catch(() => null) : null;
+        const uid = token ? userIdFromJwt(token) : null;
+        if (!uid) return false;
+        return Boolean(await live.fetchActiveSession(uid));
+      },
+    },
+  } as PropertyDescriptorMap) as typeof base & {
+    submitPing: LiveAssignmentFetcher['submitPing'];
+    getPrimaryOrgId: () => Promise<string | null>;
+    hasLiveRoute: () => Promise<boolean>;
+  };
 }
 
