@@ -1,5 +1,3 @@
-import Link from 'next/link';
-
 import { SiteHeader } from '@/components/site/site-header';
 import { SiteFooter } from '@/components/site/site-footer';
 import { Reveal } from '@/components/reveal';
@@ -11,11 +9,26 @@ import {
   CheckIcon,
   ClipboardIcon,
   DocIcon,
+  DownloadIcon,
   HealthIcon,
   RouteIcon,
   ScanIcon,
   TruckIcon,
 } from '@/components/icons';
+
+/** Kept in sync with web/src/app/download/page.tsx's RELEASE block. */
+const APP = {
+  href: '/download',
+  version: '1.0.1-beta.2',
+  sizeMb: '50.6',
+  requires: 'Android 9+ · arm64',
+};
+
+const INSTALL = [
+  { num: '01', title: 'Download', body: 'Tap Download for Android on your phone.' },
+  { num: '02', title: 'Allow install', body: 'Android asks to allow unknown apps — allow it for your browser.' },
+  { num: '03', title: 'Start your shift', body: 'Open Truck Buddy, sign in, and switch on live email from My Tools.' },
+];
 
 const FEATURES = [
   { icon: ClipboardIcon, title: 'Guided inspections', body: 'Pre- and post-trip checklists with one-thumb Pass / flag. Issues become voice notes, not clipboard scribbles.' },
@@ -47,6 +60,7 @@ export default function HomePage() {
       <main>
         <Hero />
         <StatsBar />
+        <GetTheApp />
         <FeatureSection />
         <HowItWorks />
         <ForCarriers />
@@ -86,9 +100,15 @@ function Hero() {
             it — loads, inspections, documents, dispatch, and money in one flow.
           </p>
           <div className="mt-9 flex flex-wrap gap-3">
-            <ButtonLink href="/portal" size="lg">Open the driver portal</ButtonLink>
-            <ButtonLink href="/#how-it-works" variant="outline" size="lg">See how it works</ButtonLink>
+            <ButtonLink href={APP.href} size="lg">
+              <DownloadIcon width={20} height={20} />
+              Download for Android
+            </ButtonLink>
+            <ButtonLink href="/portal" variant="outline" size="lg">Open the driver portal</ButtonLink>
           </div>
+          <p className="mt-3 text-sm font-medium text-muted">
+            Free while in beta · Android APK {APP.sizeMb} MB · iOS beta via TestFlight from the portal
+          </p>
           <ul className="mt-10 flex flex-wrap gap-2.5">
             {['Hands-free on the road', 'Full logistics desk on the web', 'Works offline in the cab'].map((t) => (
               <li
@@ -165,6 +185,52 @@ function StatsBar() {
             <div className="mt-2 text-sm leading-snug text-[#93a7c8]">{l}</div>
           </div>
         ))}
+      </div>
+    </section>
+  );
+}
+
+function GetTheApp() {
+  return (
+    <section id="get-the-app" className="relative overflow-hidden px-5 py-24">
+      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,#ffffff_0%,#eef4ff_100%)]" />
+      </div>
+      <div className="mx-auto grid max-w-6xl items-center gap-14 lg:grid-cols-[1.05fr_0.95fr]">
+        <div className="animate-fade-up">
+          <Kicker>Get the app</Kicker>
+          <h2 className="balance mt-3 text-4xl font-black leading-[1.08] tracking-[-0.025em] text-ink md:text-[44px]">
+            Truck Buddy, in the cab
+          </h2>
+          <p className="pretty mt-4 max-w-lg text-lg leading-relaxed text-muted">
+            Install the beta in under a minute. Guided inspections, spoken turns, and one-tap
+            document capture — built for one thumb and a moving truck.
+          </p>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <ButtonLink href={APP.href} size="lg">
+              <DownloadIcon width={20} height={20} />
+              Download for Android
+            </ButtonLink>
+            <ButtonLink href="/portal/pricing" variant="outline" size="lg">iOS beta (TestFlight)</ButtonLink>
+          </div>
+          <ul className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-medium text-muted">
+            <li>{APP.requires}</li>
+            <li className="hidden h-1 w-1 rounded-full bg-line sm:block" aria-hidden />
+            <li>Beta {APP.version} · {APP.sizeMb} MB</li>
+            <li className="hidden h-1 w-1 rounded-full bg-line sm:block" aria-hidden />
+            <li>Free while in beta</li>
+          </ul>
+          <ol className="mt-9 grid gap-4 sm:grid-cols-3">
+            {INSTALL.map((s) => (
+              <li key={s.num} className="card rounded-2xl border border-line bg-white p-5">
+                <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-full bg-accent-soft text-[13px] font-black text-accent">{s.num}</div>
+                <h3 className="text-[15px] font-extrabold tracking-tight text-ink">{s.title}</h3>
+                <p className="mt-1 text-sm leading-relaxed text-muted">{s.body}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
+        <PhoneMock />
       </div>
     </section>
   );
@@ -312,16 +378,16 @@ function CtaSection() {
           Pick a plan and run your first hands-free shift this week.
         </p>
         <div className="mt-9 flex flex-wrap justify-center gap-3">
-          <ButtonLink href="/portal/pricing" variant="light" size="lg">See plans &amp; pricing</ButtonLink>
-          <Link
-            href="https://truckbuddy.online/download"
-            className="inline-flex h-[52px] items-center justify-center rounded-xl border border-white/40 bg-white/5 px-7 text-base font-bold text-white transition hover:border-white hover:bg-white/10"
-          >
-            Download Android
-          </Link>
+          <ButtonLink href={APP.href} variant="light" size="lg">
+            <DownloadIcon width={20} height={20} />
+            Download for Android
+          </ButtonLink>
+          <ButtonLink href="/portal/pricing" variant="outline" size="lg" className="border-white/40 bg-white/5 text-white hover:border-white hover:bg-white/10">
+            See plans &amp; pricing
+          </ButtonLink>
         </div>
         <p className="mt-7 text-sm font-medium text-[#c9dcf7]">
-          Cancel anytime · Android, iOS &amp; web
+          Free while in beta · Android, iOS &amp; web
         </p>
       </Reveal>
     </section>

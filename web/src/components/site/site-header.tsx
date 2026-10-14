@@ -11,6 +11,7 @@ import { cn } from '@/lib/cn';
 const NAV = [
   { href: '/#product', label: 'Product' },
   { href: '/assistant', label: 'Breakdown help' },
+  { href: '/download', label: 'Get the app' },
   { href: '/#how-it-works', label: 'How it works' },
   { href: '/portal', label: 'Driver portal' },
   { href: '/#pricing', label: 'Pricing' },

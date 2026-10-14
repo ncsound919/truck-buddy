@@ -59,3 +59,14 @@ jobs:
     continue-on-error: true
     steps:
       - run: echo "advisory: wire RepoRank/Grader/Deep scoring here once reachable from CI"
+  link-check:
+    # The site once shipped a /download page and an APK with no target. Advisory
+    # (continue-on-error) so a transient outage doesn't red the build.
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node web/scripts/check-links.mjs https://truckbuddy.online
