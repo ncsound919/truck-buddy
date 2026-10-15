@@ -19,8 +19,8 @@ import {
 /** Kept in sync with web/src/app/download/page.tsx's RELEASE block. */
 const APP = {
   href: '/download',
-  version: '1.0.1-beta.2',
-  sizeMb: '50.6',
+  version: '1.0.2-beta.3',
+  sizeMb: '62.5',
   requires: 'Android 9+ · arm64',
 };
 

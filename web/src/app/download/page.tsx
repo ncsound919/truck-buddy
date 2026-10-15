@@ -3,10 +3,10 @@ import Link from 'next/link';
 export const dynamic = 'force-static';
 
 const RELEASE = {
-  version: '1.0.1-beta.2',
-  url: 'https://github.com/ncsound919/truck-buddy/releases/download/v1.0.1-beta.2/app-release.apk',
-  sizeMb: '50.6',
-  sha256: '34C7EC7F68AA362907F9130691388E657B8BC4509E07D4F39F3F2CAB6017CB78',
+  version: '1.0.2-beta.3',
+  url: 'https://github.com/ncsound919/truck-buddy/releases/download/v1.0.2-beta.3/app-release.apk',
+  sizeMb: '62.5',
+  sha256: '230B03EB26A2F28BF0D9D6441C872EA8CF53F187223CB8F0D98C3842469406F6',
   certSha256: '755dec38fa0e9c4d80640302840344454113181f5921ab8107b319758a5bf14a',
   requires: 'Android 9 or newer, arm64 phone or tablet',
 };
