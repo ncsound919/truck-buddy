@@ -6,8 +6,10 @@
   "license": "UNLICENSED",
   "dependencies": {
     "@expo/ui": "~57.0.16",
+    "@maplibre/maplibre-react-native": "^11.5.0",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "expo": "~57.0.20",
+    "expo-build-properties": "~57.0.22",
     "expo-camera": "~57.0.4",
     "expo-constants": "~57.0.17",
     "expo-contacts": "~57.0.4",
@@ -69,9 +71,9 @@
     "moduleNameMapper": {
       "^@/(.*)$": "<rootDir>/src/$1",
       "^react-native/setup-env$": "<rootDir>/__tests__/rn-setup-env-stub.js",
-        "^react-native-mlkit-ocr$": "<rootDir>/__tests__/mlkit-stub.js",
-        "^@react-native-async-storage/async-storage$": "<rootDir>/__tests__/async-storage-stub.js"
-      },
+      "^react-native-mlkit-ocr$": "<rootDir>/__tests__/mlkit-stub.js",
+      "^@react-native-async-storage/async-storage$": "<rootDir>/__tests__/async-storage-stub.js"
+    },
     "collectCoverageFrom": [
       "src/**/*.{ts,tsx}"
     ],
@@ -81,5 +83,7 @@
       "html"
     ]
   },
-  "private": true
+  "allowScripts": {
+    "patch-package@8.0.1": true
+  }
 }
